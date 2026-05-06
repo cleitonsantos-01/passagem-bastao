@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>BHub · Gerador de Passagem de Bastão</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --dark:#0F1727;--navy:#162035;--red:#F25461;--white:#fff;
+  --off:#F4F5F8;--border:#E2E5ED;--muted:#8892A4;--text:#2D3748;
+  --text-sm:#5A6478;--green:#18A663;--amber:#D97706;--blue:#3B6FE8;
+  --r:10px;--shadow:0 1px 3px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.06);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'DM Sans',sans-serif;background:#EAECF2;color:var(--text);-webkit-font-smoothing:antialiased}
+
+/* ── Upload screen ────────────────────────────────────── */
+#upload-screen{
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:32px 20px;
+}
+.brand-top{
+  font-family:'DM Serif Display',serif;font-size:28px;color:var(--dark);
+  margin-bottom:40px;letter-spacing:-.5px;
+}
+.brand-top em{color:var(--red);font-style:normal}
+.upload-card{
+  background:var(--white);border-radius:16px;border:1px solid var(--border);
+  box-shadow:var(--shadow);padding:48px;max-width:540px;width:100%;text-align:center;
+}
+.upload-icon{font-size:52px;margin-bottom:20px}
+.upload-card h2{font-size:22px;font-weight:700;color:var(--dark);margin-bottom:10px}
+.upload-card p{font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:32px}
+.drop-zone{
+  border:2px dashed var(--border);border-radius:12px;padding:32px;cursor:pointer;
+  transition:all .2s;background:var(--off);margin-bottom:20px;
+}
+.drop-zone:hover,.drop-zone.over{border-color:var(--red);background:#fff8f8}
+.drop-zone input{display:none}
+.drop-zone-label{font-size:14px;font-weight:600;color:var(--text-sm)}
+.drop-zone-sub{font-size:12px;color:var(--muted);margin-top:6px}
+.btn-upload{
+  width:100%;padding:13px;background:var(--dark);color:var(--white);border:none;
+  border-radius:10px;font-size:14px;font-weight:700;font-family:inherit;
+  cursor:pointer;transition:background .15s;
+}
+.btn-upload:hover{background:#1e2d45}
+.how-it-works{
+  margin-top:40px;max-width:540px;width:100%;
+  background:var(--white);border-radius:12px;border:1px solid var(--border);
+  padding:20px 24px;
+}
+.how-it-works h4{font-size:13px;font-weight:700;color:var(--dark);margin-bottom:12px}
+.step-row{display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;font-size:13px;color:var(--text-sm)}
+.step-row:last-child{margin:0}
+.step-num{width:22px;height:22px;background:var(--dark);color:var(--white);border-radius:50%;
+  font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+/* ── Report screen ────────────────────────────────────── */
+#report-screen{display:none;padding-bottom:60px}
+#topbar{
+  position:sticky;top:0;z-index:100;background:var(--dark);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 28px;height:54px;border-bottom:1px solid rgba(255,255,255,.07);
+}
+.tb-left{display:flex;align-items:center;gap:16px}
+.tb-brand{font-family:'DM Serif Display',serif;font-size:20px;color:var(--white)}
+.tb-brand em{color:var(--red);font-style:normal}
+.tb-client{font-size:12px;color:rgba(255,255,255,.45);padding-left:14px;border-left:1px solid rgba(255,255,255,.1)}
+.tb-right{display:flex;gap:8px}
+.tb-btn{
+  padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;
+  cursor:pointer;border:none;font-family:inherit;transition:all .15s;
+}
+.tb-ghost{background:rgba(255,255,255,.08);color:rgba(255,255,255,.7)}
+.tb-ghost:hover{background:rgba(255,255,255,.14);color:var(--white)}
+.tb-red{background:var(--red);color:var(--white)}
+.tb-red:hover{background:#e03040}
+
+/* ── Content ──────────────────────────────────────────── */
+.report-body{max-width:900px;margin:0 auto;padding:32px 20px}
+
+/* Hero banner */
+.hero{
+  background:var(--dark);border-radius:14px;padding:36px 40px;margin-bottom:28px;
+  position:relative;overflow:hidden;
+}
+.hero::before{
+  content:'';position:absolute;right:-40px;top:-40px;
+  width:200px;height:200px;background:rgba(242,84,97,.08);
+  border-radius:50%;
+}
+.hero-eyebrow{font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--red);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.hero-eyebrow::before{content:'';width:20px;height:2px;background:var(--red);border-radius:1px}
+.hero-name{font-family:'DM Serif Display',serif;font-size:34px;color:var(--white);line-height:1.1;margin-bottom:6px}
+.hero-name em{color:var(--red);font-style:normal}
+.hero-pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.pill{
+  padding:5px 13px;border-radius:20px;font-size:12px;font-weight:600;
+  background:rgba(255,255,255,.08);color:rgba(255,255,255,.7);
+  border:1px solid rgba(255,255,255,.12);
+}
+.pill.red{background:rgba(242,84,97,.15);color:var(--red);border-color:rgba(242,84,97,.3)}
+
+/* Alert banner */
+.alerts{margin-bottom:24px}
+.alert{
+  display:flex;align-items:flex-start;gap:12px;
+  padding:14px 18px;border-radius:10px;font-size:13px;line-height:1.5;
+  margin-bottom:10px;border-left:4px solid;
+}
+.alert-crit{background:#FFF1F2;border-color:var(--red);color:#9F1239}
+.alert-warn{background:#FFFBEB;border-color:var(--amber);color:#92400E}
+.alert-info{background:#EFF6FF;border-color:var(--blue);color:#1E40AF}
+.alert-ok  {background:#F0FDF4;border-color:var(--green);color:#065F46}
+.alert-icon{font-size:18px;flex-shrink:0;margin-top:1px}
+.alert-body strong{display:block;font-weight:700;margin-bottom:2px}
+
+/* Section grid */
+.sections-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:640px){.sections-grid{grid-template-columns:1fr}}
+
+.sec-card{
+  background:var(--white);border-radius:12px;border:1px solid var(--border);
+  box-shadow:var(--shadow);overflow:hidden;
+}
+.sec-card.full{grid-column:1/-1}
+.sec-head{
+  background:var(--dark);padding:14px 20px;display:flex;align-items:center;gap:10px;
+  border-bottom:3px solid var(--red);
+}
+.sec-icon{font-size:16px}
+.sec-title{font-size:14px;font-weight:700;color:var(--white)}
+.sec-body{padding:16px 20px}
+
+/* Rows */
+.dr{display:flex;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;gap:12px}
+.dr:last-child{border:none;padding-bottom:0}
+.dk{color:var(--muted);width:46%;flex-shrink:0;font-size:12px;line-height:1.4}
+.dv{color:var(--text);font-weight:500;line-height:1.4}
+.dv.long{font-size:12px;font-style:italic;color:var(--text-sm)}
+
+/* Tags */
+.tag{
+  display:inline-flex;align-items:center;gap:3px;
+  padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;
+}
+.tag-green{background:#DCFCE7;color:#16A34A}
+.tag-red  {background:#FEE2E2;color:#DC2626}
+.tag-amber{background:#FEF9C3;color:#A16207}
+.tag-gray {background:#F3F4F6;color:#6B7280}
+.tag-blue {background:#DBEAFE;color:#1D4ED8}
+
+/* Checklist in card */
+.ci-list{display:flex;flex-direction:column;gap:4px}
+.ci{
+  display:flex;align-items:center;gap:10px;padding:8px 10px;
+  border-radius:7px;font-size:13px;background:var(--off);
+  border:1px solid transparent;
+}
+.ci.done{background:#F0FDF4;border-color:#86EFAC;color:#065F46}
+.ci.pend{background:#FFF7ED;border-color:#FDE68A;color:#92400E}
+.ci-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.ci.done .ci-dot{background:var(--green)}
+.ci.pend .ci-dot{background:var(--amber)}
+
+/* Print */
+@media print{
+  #topbar,.tb-right,.upload-screen{display:none!important}
+  body{background:white}
+  .report-body{padding:0;max-width:100%}
+  .hero,.sec-card,.alert,.alerts{break-inside:avoid}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+
+<!-- ── Upload screen ──────────────────────────────────────── -->
+<div id="upload-screen">
+  <div class="brand-top">BHub<em>.</em></div>
+
+  <div class="upload-card">
+    <div class="upload-icon">📊</div>
+    <h2>Gerador de Passagem de Bastão</h2>
+    <p>Exporte a Ficha Técnica do Google Sheets como <strong>.xlsx</strong> e faça o upload aqui. O sistema lê os dados automaticamente e gera o briefing completo com pontos críticos — sem redigitar nada.</p>
+
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <input type="file" id="file-input" accept=".xlsx,.xls" onchange="handleFile(this.files[0])">
+      <div class="upload-icon" style="font-size:32px;margin-bottom:8px">📂</div>
+      <div class="drop-zone-label">Clique para selecionar ou arraste o arquivo</div>
+      <div class="drop-zone-sub">Ficha_Técnica_NomeCliente.xlsx</div>
+    </div>
+    <button class="btn-upload" onclick="document.getElementById('file-input').click()">Selecionar arquivo .xlsx</button>
+  </div>
+
+  <div class="how-it-works">
+    <h4>Como usar</h4>
+    <div class="step-row"><div class="step-num">1</div><div>No Google Sheets da Ficha Técnica: <strong>Arquivo → Fazer download → Microsoft Excel (.xlsx)</strong></div></div>
+    <div class="step-row"><div class="step-num">2</div><div>Faça o upload do arquivo baixado aqui nesta página</div></div>
+    <div class="step-row"><div class="step-num">3</div><div>O briefing é gerado automaticamente. Use <strong>Imprimir</strong> para salvar em PDF ou apresentar na reunião</div></div>
+  </div>
+</div>
+
+<!-- ── Report screen ───────────────────────────────────────── -->
+<div id="report-screen">
+  <div id="topbar">
+    <div class="tb-left">
+      <div class="tb-brand">BHub<em>.</em></div>
+      <div class="tb-client" id="tb-client-name">—</div>
+    </div>
+    <div class="tb-right">
+      <button class="tb-btn tb-ghost" onclick="resetApp()">⬅ Novo arquivo</button>
+      <button class="tb-btn tb-ghost" onclick="window.print()">🖨️ Imprimir / PDF</button>
+    </div>
+  </div>
+  <div class="report-body" id="report-body"></div>
+</div>
+
+<script>
+// ── Drag & drop ────────────────────────────────────────────
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); handleFile(e.dataTransfer.files[0]); });
+
+function resetApp() {
+  document.getElementById('upload-screen').style.display = 'flex';
+  document.getElementById('report-screen').style.display = 'none';
+  document.getElementById('file-input').value = '';
+}
+
+// ── File reader ─────────────────────────────────────────────
+function handleFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      const data = parseSheets(wb);
+      renderReport(data);
+    } catch(err) {
+      alert('Erro ao ler o arquivo. Certifique-se de exportar como .xlsx do Google Sheets.\n\n' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── Sheet parser ────────────────────────────────────────────
+function parseSheets(wb) {
+  const get = (sheetName) => {
+    const s = wb.Sheets[sheetName];
+    if (!s) return [];
+    return XLSX.utils.sheet_to_json(s, { header: 1, defval: '' });
+  };
+
+  // Helper: find value in sheet by label match
+  function findVal(rows, labelFragment, colOffset = 1) {
+    for (const row of rows) {
+      const label = String(row[0] || '');
+      if (label.toLowerCase().includes(labelFragment.toLowerCase())) {
+        const v = row[colOffset];
+        if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
+      }
+    }
+    return '';
+  }
+
+  function findValMulti(rows, labelFragment) {
+    // returns {val, obs}
+    for (const row of rows) {
+      const label = String(row[0] || '');
+      if (label.toLowerCase().includes(labelFragment.toLowerCase())) {
+        return { val: String(row[1] || '').trim(), obs: String(row[2] || '').trim() };
+      }
+    }
+    return { val: '', obs: '' };
+  }
+
+  const geral = get('1. Dados Gerais ');
+  const tec   = get('2. Dados Técnicos (FiscalDPCont');
+  const dpImpl= get('Ficha Técnica Implantação DP');
+  const fisc  = get('Ficha Técnica Implantação Fisca');
+  const cont  = get('Ficha Técnica Implantação Contá');
+
+  // ── Dados Gerais ──────────────────────────────────────
+  const d = {};
+
+  // Identificação
+  d.razao_social      = findVal(geral, 'Razão Social');
+  d.cnpj_raw          = findVal(geral, 'CNPJ');
+  d.cnpj              = formatCNPJ(d.cnpj_raw);
+  d.origem            = findVal(geral, 'Origem do cliente');
+  d.grupo_economico   = findVal(geral, 'grupo econômico');
+  d.filiais           = findVal(geral, 'filiais');
+  d.abertura          = findVal(geral, 'Data de Abertura');
+  d.natureza          = findVal(geral, 'Natureza Jurídica');
+  d.porte             = findVal(geral, 'Porte da Empresa');
+  d.situacao          = findVal(geral, 'Situação Cadastral');
+  d.municipio         = findVal(geral, 'Município');
+  d.uf                = findVal(geral, 'UF');
+  d.atividade         = findVal(geral, 'Atividade Preponderante');
+  d.cert_digital      = findVal(geral, 'Certificado Digital');
+  d.complexidade      = findVal(geral, 'Complexidade');
+  d.regime            = findVal(geral, 'Regime tributário');
+  d.competencia       = findVal(geral, 'Competência Inicial');
+  d.tipo_reuniao      = findVal(geral, 'Onboarding sync ou async');
+  d.cliente_engajado  = findVal(geral, 'engajado');
+  d.core_business     = findVal(geral, 'Core Business');
+  d.tipo_cliente      = findVal(geral, 'Tipo de Clientes');
+  d.ponto_focal       = findVal(geral, 'pontos focais');
+  d.familia           = findVal(geral, 'Família', 4);
+
+  // Escrita Fiscal
+  d.importa_exporta   = findValMulti(geral, 'Realiza importação ou exportação');
+  d.impostos_atraso   = findValMulti(geral, 'impostos ou obrigações em atraso');
+  d.parcelamentos     = findValMulti(geral, 'Parcelamentos de impostos');
+  d.contratos         = findValMulti(geral, 'contratos com clientes');
+  d.sist_nf           = findValMulti(geral, 'sistema emissor de nota fiscal');
+  d.subst_trib        = findValMulti(geral, 'substituição tributária');
+  d.beneficio_fiscal  = findValMulti(geral, 'Regimes especiais');
+
+  // Folha
+  d.clt               = findValMulti(geral, 'funcionários registrados (CLT)');
+  d.pretende_contratar= findValMulti(geral, 'pretende contratar');
+  d.pjs               = findValMulti(geral, 'PJs freelancers');
+  d.dia_pgto          = findVal(geral, 'dia de pagamento da folha');
+  d.adiantamento      = findValMulti(geral, 'adiantamento salarial');
+  d.controle_ponto    = findValMulti(geral, 'controle de ponto');
+  d.comissoes         = findValMulti(geral, 'comissões, horas extras');
+  d.beneficios_esp    = findValMulti(geral, 'benefícios com regras específicas');
+  d.rotatividade      = findValMulti(geral, 'rotatividade');
+  d.sindicato         = findValMulti(geral, 'vinculada a algum sindicato');
+  d.prolabore_geral   = findVal(geral, 'Pró-labore');
+
+  // ── Dados Técnicos ─────────────────────────────────────
+  d.ccm               = findVal(tec, 'Número CCM');
+  d.sit_federal       = findVal(tec, 'Situação Fiscal Federal');
+  d.sit_estadual      = findVal(tec, 'Situação Fiscal Estadual');
+  d.sit_municipal     = findVal(tec, 'Situação Fiscal Municipal');
+  d.proc_federal      = findVal(tec, 'Procuração Federal');
+  d.proc_estadual     = findVal(tec, 'Procuração / Acesso Estadual');
+  d.proc_municipal    = findVal(tec, 'Procuração / Acesso Municipal');
+  d.perdcomp          = findVal(tec, 'PERDCOMP');
+  d.reinf             = findVal(tec, 'pagamento aluguel na REINF');
+  d.parcel_fiscal     = findVal(tec, 'Possui parcelamento');
+  d.cprb              = findVal(tec, 'CPRB');
+  d.sit_ccm           = findVal(tec, 'Situação CCM');
+  // LP details
+  d.irpj_csll         = findVal(tec, 'Recolhimento IRPJ|CSLL');
+  d.pis_cofins        = findVal(tec, 'Tributação PIS|COFINS');
+  d.venc_iss          = findVal(tec, 'Vencimento ISS');
+  d.iss_outros_mun    = findVal(tec, 'ISS a recolher em outros municípios');
+
+  // DP técnico
+  d.sit_dp            = findVal(tec, 'Situação Fiscal ', 1); // DP row
+  d.procuracoes_dp    = findVal(tec, 'Procurações', 3);
+  d.recem_const       = findVal(tec, 'Cliente recém-constituído', 3);
+  d.dctfweb           = findVal(tec, 'DCTFWeb de abertura', 3);
+  d.clt_dp            = findVal(tec, 'CLT', 3);
+  d.sind_dp           = findVal(tec, 'Sindicato', 3);
+  d.esocial           = findVal(tec, 'eSocial', 1);
+  d.crf               = findVal(tec, 'Emissão de CRF');
+  d.prolabore_dp      = findVal(tec, 'Pró Labore');
+  d.e_consig          = findVal(tec, 'E-Consignado');
+  d.fgts_aberto       = findVal(tec, 'FGTS em aberto');
+
+  // CNAEs LP
+  const cnaes = [];
+  for (const row of tec) {
+    const v = String(row[3] || '').trim();
+    if (v.match(/^\d{2}\.\d{2}/)) cnaes.push(v);
+  }
+  d.cnaes = cnaes;
+
+  // Quadro Societário from geral
+  const socios = [];
+  for (const row of geral) {
+    if (row[6] && String(row[6]).includes('Sócio') && row[3] && String(row[3]).trim()) {
+      socios.push({ nome: String(row[3]).trim(), qual: String(row[6]).trim() });
+    }
+  }
+  d.socios = socios;
+
+  // Parametrização DP checklist
+  const dpCheck = [];
+  let inParam = false;
+  for (const row of dpImpl) {
+    const label = String(row[0] || '').trim();
+    const status = String(row[3] || '').trim();
+    if (label === 'Parametrização Domínio' || label === 'Parametrização Gestta') { inParam = true; continue; }
+    if (inParam && label && (status === 'True' || status === 'False' || status === 'true' || status === 'false')) {
+      dpCheck.push({ label, done: status.toLowerCase() === 'true' });
+    }
+  }
+  d.dpCheck = dpCheck;
+
+  return d;
+}
+
+function formatCNPJ(v) {
+  const s = String(v).replace(/\D/g,'').padStart(14,'0');
+  if (s.length === 14) return `${s.slice(0,2)}.${s.slice(2,5)}.${s.slice(5,8)}/${s.slice(8,12)}-${s.slice(12)}`;
+  return v;
+}
+
+// ── Renderer ────────────────────────────────────────────────
+function renderReport(d) {
+  document.getElementById('upload-screen').style.display = 'none';
+  document.getElementById('report-screen').style.display = 'block';
+  document.getElementById('tb-client-name').textContent = d.razao_social || 'Cliente';
+
+  // Build alerts
+  const crits = [], warns = [], infos = [], oks = [];
+
+  if (d.perdcomp === 'SIM' || d.perdcomp === 'Sim') crits.push('🔴 PERDCOMP em análise ou com saldo — verificar antes de iniciar operação fiscal.');
+  if (d.importa_exporta?.val?.toLowerCase().includes('sim')) warns.push('⚠️ Cliente realiza importação/exportação — atenção a operações cambiais e obrigações específicas.');
+  if (d.subst_trib?.val?.toLowerCase().includes('sim')) warns.push('⚠️ Possui operações com Substituição Tributária, DIFAL ou retenções relevantes.');
+  if (d.beneficio_fiscal?.val?.toLowerCase().includes('sim') || d.beneficio_fiscal?.obs?.toLowerCase().includes('sim')) warns.push('⚠️ Possui regime especial ou benefício fiscal — verificar parametrização específica.');
+  if (d.impostos_atraso?.val?.toLowerCase().includes('sim')) crits.push('🔴 Possui impostos ou obrigações em atraso — avaliar passivo antes do início.');
+  if (d.parcelamentos?.val?.toLowerCase().includes('sim')) warns.push('⚠️ Possui parcelamento de impostos em aberto.');
+  if (d.rotatividade?.val?.toLowerCase().includes('sim')) warns.push('⚠️ Alta rotatividade ou passivo trabalhista relevante reportado.');
+  if (d.sindicato?.obs?.toLowerCase().includes('validar')) infos.push('ℹ️ Enquadramento sindical a validar conforme atividade.');
+  if (d.recem_const?.toLowerCase() === 'sim') infos.push('ℹ️ Empresa recém-constituída — cliente novo sem histórico anterior.');
+  if (d.tipo_reuniao?.toLowerCase().includes('async')) infos.push('ℹ️ Onboarding realizado de forma assíncrona — confirmar completude das informações.');
+  if (d.grupo_economico?.toLowerCase().includes('sim') || d.grupo_economico === 'Sim') infos.push(`ℹ️ Possui grupo econômico (${d.core_business ? 'HYPERNOVA / ' : ''}verificar impactos contábeis e fiscais).`);
+  if (!d.clt?.val || d.clt.val === 'Não' || d.clt.val === '') oks.push('✅ Sem funcionários CLT — folha simplificada.');
+  if (d.sit_federal?.toLowerCase().includes('regular')) oks.push('✅ Situação fiscal federal regular.');
+  if (d.crf?.toLowerCase().includes('regular')) oks.push('✅ CRF regular.');
+  if (d.proc_federal?.toLowerCase().includes('ok') || d.proc_federal?.toLowerCase().includes('outorga ok')) oks.push('✅ Procuração federal outorgada.');
+
+  // Build HTML
+  let html = '';
+
+  // ── Hero ──────────────────────────────────────────────
+  const dataAbertura = d.abertura ? new Date(d.abertura).toLocaleDateString('pt-BR') : '—';
+  const competencia  = d.competencia ? new Date(d.competencia).toLocaleDateString('pt-BR',{month:'short',year:'numeric'}) : '—';
+  html += `
+  <div class="hero">
+    <div class="hero-eyebrow">Passagem de Bastão — Operação</div>
+    <div class="hero-name">${d.razao_social || 'Cliente'}<em>.</em></div>
+    <div style="font-size:13px;color:rgba(255,255,255,.45);margin-top:4px">${d.cnpj} &nbsp;·&nbsp; ${d.municipio}/${d.uf} &nbsp;·&nbsp; Competência inicial: ${competencia}</div>
+    <div class="hero-pills">
+      <div class="pill">${d.regime || '—'}</div>
+      <div class="pill">${d.atividade || 'Serviço'}</div>
+      <div class="pill">${d.natureza?.replace('206-2 – ','') || '—'}</div>
+      <div class="pill">Família ${d.familia || '—'}</div>
+      ${d.grupo_economico && d.grupo_economico.toLowerCase().includes('sim') ? '<div class="pill red">Grupo Econômico</div>' : ''}
+      ${d.complexidade ? `<div class="pill">Complexidade ${d.complexidade}</div>` : ''}
+    </div>
+  </div>`;
+
+  // ── Alerts ────────────────────────────────────────────
+  if (crits.length || warns.length || infos.length || oks.length) {
+    html += '<div class="alerts">';
+    crits.forEach(a => html += `<div class="alert alert-crit"><div class="alert-icon">🚨</div><div class="alert-body"><strong>Ponto Crítico</strong>${a.slice(2)}</div></div>`);
+    warns.forEach(a => html += `<div class="alert alert-warn"><div class="alert-icon">⚠️</div><div class="alert-body"><strong>Atenção</strong>${a.slice(2)}</div></div>`);
+    infos.forEach(a => html += `<div class="alert alert-info"><div class="alert-icon">ℹ️</div><div class="alert-body">${a.slice(2)}</div></div>`);
+    oks.forEach(a   => html += `<div class="alert alert-ok"><div class="alert-icon">✅</div><div class="alert-body">${a.slice(2)}</div></div>`);
+    html += '</div>';
+  }
+
+  // ── Sections grid ─────────────────────────────────────
+  html += '<div class="sections-grid">';
+
+  // 1. Dados Cadastrais
+  html += card('📋 Dados Cadastrais', [
+    ['Razão Social', d.razao_social],
+    ['CNPJ', d.cnpj],
+    ['Data de Abertura', dataAbertura],
+    ['Município / UF', `${d.municipio} / ${d.uf}`],
+    ['Regime Tributário', d.regime, 'blue'],
+    ['Natureza Jurídica', d.natureza?.replace(/^\d+-\d+ – /,'')],
+    ['Porte', d.porte],
+    ['Situação Cadastral', d.situacao, d.situacao?.toLowerCase().includes('ativa') ? 'green' : 'red'],
+    ['Cert. Digital', d.cert_digital, d.cert_digital?.toLowerCase().includes('sim') ? 'green' : 'amber'],
+    ['Onboarding', d.tipo_reuniao],
+    ['Cliente engajado', d.cliente_engajado, d.cliente_engajado?.toLowerCase().includes('sim') ? 'green' : 'amber'],
+    ['Contato principal', d.ponto_focal],
+  ]);
+
+  // 2. Contexto do Negócio
+  let coreHtml = d.core_business ? `<div class="dr"><div class="dk">Core Business</div><div class="dv long">${d.core_business}</div></div>` : '';
+  coreHtml += row('Tipo de Cliente', d.tipo_cliente);
+  coreHtml += row('Atividade', d.atividade);
+  coreHtml += row('Grupo Econômico', d.grupo_economico?.toLowerCase().includes('sim') ? 'Sim — HYPERNOVA VENTURES' : (d.grupo_economico || 'Não'), d.grupo_economico?.toLowerCase().includes('sim') ? 'amber' : '');
+  coreHtml += row('Filiais', d.filiais?.toLowerCase() === 'sim' ? 'Sim' : 'Não');
+  coreHtml += row('Importação/Exportação', d.importa_exporta?.val, d.importa_exporta?.val?.toLowerCase().includes('sim') ? 'amber' : 'green');
+  coreHtml += row('Contratos c/ clientes', d.contratos?.val, d.contratos?.val?.toLowerCase().includes('sim') ? 'blue' : '');
+  coreHtml += row('Sistema emissor NF', d.sist_nf?.val);
+  if (d.cnaes?.length) {
+    coreHtml += `<div class="dr"><div class="dk">CNAEs (${d.regime})</div><div class="dv" style="font-size:11px;line-height:1.7">${d.cnaes.join('<br>')}</div></div>`;
+  }
+  html += secCard('🏢 Contexto do Negócio', coreHtml);
+
+  // 3. Quadro Societário
+  let socHtml = '';
+  if (d.socios?.length) {
+    d.socios.forEach(s => { socHtml += row(s.qual, s.nome); });
+  } else {
+    socHtml = '<div style="font-size:13px;color:var(--muted);padding:8px 0">Dados societários não identificados</div>';
+  }
+  socHtml += row('Pró-labore', d.prolabore_dp || d.prolabore_geral, (d.prolabore_dp||d.prolabore_geral)?.toLowerCase().includes('não') ? 'gray' : 'amber');
+  html += secCard('👥 Quadro Societário', socHtml);
+
+  // 4. Situação Fiscal
+  html += card('🏛️ Situação Fiscal', [
+    ['Sit. Federal', d.sit_federal, colorSit(d.sit_federal)],
+    ['Sit. Estadual', d.sit_estadual, colorSit(d.sit_estadual)],
+    ['Sit. Municipal', d.sit_municipal, colorSit(d.sit_municipal)],
+    ['Sit. CCM', d.sit_ccm, colorSit(d.sit_ccm)],
+    ['Proc. Federal', d.proc_federal, d.proc_federal?.toLowerCase().includes('ok') ? 'green' : 'amber'],
+    ['Proc. Estadual', d.proc_estadual, d.proc_estadual?.toLowerCase().includes('ok') ? 'green' : 'amber'],
+    ['Proc. Municipal', d.proc_municipal, d.proc_municipal?.toLowerCase().includes('ok') ? 'green' : 'amber'],
+    ['PERDCOMP', d.perdcomp, d.perdcomp?.toUpperCase() === 'SIM' ? 'red' : 'green'],
+    ['REINF (aluguel)', d.reinf, d.reinf?.toLowerCase().includes('não') ? 'green' : 'amber'],
+    ['Parcelamento', d.parcel_fiscal, d.parcel_fiscal?.toLowerCase().includes('n/a') || d.parcel_fiscal?.toLowerCase().includes('não') ? 'green' : 'amber'],
+    ['CPRB', d.cprb, d.cprb?.toUpperCase() === 'NÃO' ? 'gray' : 'amber'],
+  ]);
+
+  // 5. Detalhes LP / Apuração
+  if (d.irpj_csll || d.pis_cofins) {
+    html += card('📊 Apuração (Lucro Presumido)', [
+      ['IRPJ / CSLL', d.irpj_csll],
+      ['PIS / COFINS', d.pis_cofins, 'blue'],
+      ['Vencimento ISS', d.venc_iss ? `Dia ${d.venc_iss}` : ''],
+      ['ISS outros municípios', d.iss_outros_mun, d.iss_outros_mun?.toUpperCase() === 'NÃO' ? 'green' : 'amber'],
+      ['Subst. Tributária', d.subst_trib?.val, d.subst_trib?.val?.toLowerCase() === 'não' ? 'green' : 'amber'],
+    ]);
+  }
+
+  // 6. Departamento Pessoal
+  html += card('👤 Departamento Pessoal', [
+    ['Situação Fiscal DP', d.sit_dp, colorSit(d.sit_dp)],
+    ['Procurações DP', d.procuracoes_dp, d.procuracoes_dp ? 'green' : 'amber'],
+    ['Recém-constituído', d.recem_const, d.recem_const?.toLowerCase() === 'sim' ? 'blue' : 'gray'],
+    ['DCTFWeb abertura', d.dctfweb, d.dctfweb?.toLowerCase().includes('prazo') ? 'green' : 'amber'],
+    ['eSocial', d.esocial, d.esocial?.toLowerCase().includes('sem movimentação') ? 'gray' : 'blue'],
+    ['CRF', d.crf, colorSit(d.crf)],
+    ['CLT', d.clt?.val || d.clt_dp || 'Não', (d.clt?.val || 'não').toLowerCase() === 'não' ? 'green' : 'blue'],
+    ['PJs', d.pjs?.val, (d.pjs?.val || 'não').toLowerCase() === 'não' ? 'green' : 'blue'],
+    ['Pró-labore', d.prolabore_dp, d.prolabore_dp?.toLowerCase().includes('não') ? 'gray' : 'amber'],
+    ['E-Consignado', d.e_consig],
+    ['FGTS em aberto', d.fgts_aberto],
+    ['Sindicato', d.sind_dp || d.sindicato?.val],
+    ['Dia de pgto folha', d.dia_pgto ? `Dia ${d.dia_pgto}` : ''],
+    ['Adiantamento', d.adiantamento?.val, d.adiantamento?.val?.toLowerCase() === 'não' ? 'gray' : 'blue'],
+    ['Controle de ponto', d.controle_ponto?.val, d.controle_ponto?.val?.toLowerCase() === 'não' ? 'gray' : 'blue'],
+    ['Comissões/HE/Var.', d.comissoes?.val, d.comissoes?.val?.toLowerCase() === 'não' ? 'gray' : 'amber'],
+    ['Rotatividade', d.rotatividade?.val, d.rotatividade?.val?.toLowerCase() === 'não' ? 'green' : 'red'],
+  ]);
+
+  // 7. Checklist Parametrização DP
+  if (d.dpCheck?.length) {
+    let checkHtml = '<div class="ci-list">';
+    d.dpCheck.forEach(item => {
+      checkHtml += `<div class="ci ${item.done?'done':'pend'}"><div class="ci-dot"></div>${item.label}</div>`;
+    });
+    checkHtml += '</div>';
+    const done = d.dpCheck.filter(x=>x.done).length;
+    const total = d.dpCheck.length;
+    checkHtml = `<div style="font-size:12px;color:var(--muted);margin-bottom:12px">${done}/${total} itens parametrizados</div>` + checkHtml;
+    html += `<div class="sec-card full">${secHead('⚙️ Checklist Parametrização DP')}<div class="sec-body">${checkHtml}</div></div>`;
+  }
+
+  // 8. Pontos de atenção observações
+  const obs_items = [
+    d.importa_exporta?.obs, d.clt?.obs, d.sindicato?.obs,
+    d.comissoes?.obs, d.beneficios_esp?.obs, d.contratos?.obs,
+    d.rotatividade?.obs, d.subst_trib?.obs,
+  ].filter(Boolean);
+
+  if (obs_items.length) {
+    let obsHtml = '';
+    obs_items.forEach(o => {
+      obsHtml += `<div class="dr" style="border:none;padding:6px 0"><div class="dv long" style="font-size:13px">• ${o}</div></div>`;
+    });
+    html += `<div class="sec-card full">${secHead('📝 Observações da Ficha')}<div class="sec-body">${obsHtml}</div></div>`;
+  }
+
+  html += '</div>'; // /sections-grid
+
+  document.getElementById('report-body').innerHTML = html;
+  window.scrollTo({ top: 0 });
+}
+
+// ── Builder helpers ─────────────────────────────────────────
+function colorSit(v) {
+  if (!v) return '';
+  const vl = v.toLowerCase();
+  if (vl.includes('regular') || vl.includes('ativo') || vl.includes('ativa')) return 'green';
+  if (vl.includes('irregular') || vl.includes('cancelad')) return 'red';
+  return 'amber';
+}
+
+function tag(v, color) {
+  if (!v || v === '—') return `<span style="color:var(--muted)">${v||'—'}</span>`;
+  const cls = color ? `tag-${color}` : '';
+  return cls ? `<span class="tag ${cls}">${v}</span>` : v;
+}
+
+function row(label, val, color) {
+  if (!val || val.trim() === '' || val === '-') return '';
+  return `<div class="dr"><div class="dk">${label}</div><div class="dv">${tag(val, color)}</div></div>`;
+}
+
+function card(title, rows) {
+  const icon = title.split(' ')[0];
+  const titleText = title.slice(icon.length+1);
+  let body = '';
+  rows.forEach(([k,v,c]) => { body += row(k, v, c); });
+  if (!body) body = '<div style="font-size:13px;color:var(--muted);padding:8px 0">Sem dados</div>';
+  return `<div class="sec-card"><div class="sec-head"><div class="sec-icon">${icon}</div><div class="sec-title">${titleText}</div></div><div class="sec-body">${body}</div></div>`;
+}
+
+function secHead(title) {
+  const icon = title.split(' ')[0];
+  const t = title.slice(icon.length+1);
+  return `<div class="sec-head"><div class="sec-icon">${icon}</div><div class="sec-title">${t}</div></div>`;
+}
+
+function secCard(title, bodyHtml) {
+  return `<div class="sec-card">${secHead(title)}<div class="sec-body">${bodyHtml}</div></div>`;
+}
+</script>
+</body>
+</html>
