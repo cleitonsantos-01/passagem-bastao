@@ -251,233 +251,256 @@ function handleFile(file) {
 }
 
 // ── Sheet parser ────────────────────────────────────────────
+
+// ── Sheet loader ─────────────────────────────────────────────
 function parseSheets(wb) {
-  // ── Sheet loader ────────────────────────────────────────
-  const get = (sheetName) => {
-    // Try exact name first, then partial match (handles trailing spaces)
-    let s = wb.Sheets[sheetName];
-    if (!s) {
-      const key = Object.keys(wb.Sheets).find(k => k.trim().startsWith(sheetName.trim().slice(0, 20)));
-      if (key) s = wb.Sheets[key];
-    }
-    if (!s) return [];
-    return XLSX.utils.sheet_to_json(s, { header: 1, defval: '' });
+  const get = name => {
+    let s = wb.Sheets[name];
+    if (!s) { const k = Object.keys(wb.Sheets).find(k => k.trim().startsWith(name.trim().slice(0,22))); if (k) s = wb.Sheets[k]; }
+    return s ? XLSX.utils.sheet_to_json(s, { header:1, defval:'' }) : [];
   };
 
-  // ── Generic helpers ─────────────────────────────────────
-  // Cell value by row index + col index (0-based)
-  const cell = (rows, r, c) => {
-    const row = rows[r];
-    if (!row) return '';
-    const v = row[c];
-    if (v === undefined || v === null) return '';
-    return String(v).trim();
+  // Get cell value by exact row/col (0-based), returns '' if empty/-
+  const c = (rows, r, col) => {
+    const v = rows[r]?.[col];
+    const s = String(v ?? '').trim();
+    return (s === '' || s === '-' || s === 'nan') ? '' : s;
   };
 
-  // Find first row where col0 contains fragment, return value at colOffset
-  function findVal(rows, fragment, colOffset = 1, startRow = 0, endRow = null) {
-    const end = endRow !== null ? endRow : rows.length;
-    for (let i = startRow; i < end; i++) {
-      const label = String(rows[i]?.[0] || '').toLowerCase();
-      if (label.includes(fragment.toLowerCase())) {
-        const v = rows[i]?.[colOffset];
-        if (v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim() !== '-') {
-          return String(v).trim();
-        }
-      }
-    }
-    return '';
-  }
+  // Shorthand: get col1 value of row r
+  const v1 = (rows, r) => c(rows, r, 1);
+  const v2 = (rows, r) => c(rows, r, 2);
+  const v3 = (rows, r) => c(rows, r, 3);
 
-  // Find row returning {val (col1), obs (col2)}
-  function findMV(rows, fragment, startRow = 0, endRow = null) {
-    const end = endRow !== null ? endRow : rows.length;
-    for (let i = startRow; i < end; i++) {
-      const label = String(rows[i]?.[0] || '').toLowerCase();
-      if (label.includes(fragment.toLowerCase())) {
-        const val = String(rows[i]?.[1] || '').trim();
-        const obs = String(rows[i]?.[2] || '').trim().replace(/^Obs\.?:?\s*/i, '');
-        return { val: val === '-' ? '' : val, obs: obs === '-' ? '' : obs };
-      }
-    }
-    return { val: '', obs: '' };
-  }
+  // Clean obs prefix
+  const cleanObs = s => s.replace(/^(Obs\.?:?|obs\.?:?)\s*/i,'').trim();
 
-  // ── Load sheets ──────────────────────────────────────────
-  const geral  = get('1. Dados Gerais');
-  const tec    = get('2. Dados Técnicos (FiscalDPCont');
-  const dpImpl = get('Ficha Técnica Implantação DP');
+  const G = get('1. Dados Gerais');   // Aba 1
+  const T = get('2. Dados Técnicos (FiscalDPCont'); // Aba 2
+  const DP = get('Ficha Técnica Implantação DP');
 
   const d = {};
 
-  // ════════════════════════════════════════════════════════
-  // ABA 1 — DADOS GERAIS
-  // Row positions confirmed from actual file analysis
-  // ════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════
+  //  ABA 1 — DADOS GERAIS  (141 rows × 7 cols)
+  // ════════════════════════════════════════════════════════════
 
-  // Identificação (R2–R15)
-  d.razao_social     = cell(geral, 2, 1);
-  d.familia          = cell(geral, 2, 4);
-  d.cnpj_raw         = cell(geral, 3, 1);
-  d.cnpj             = formatCNPJ(d.cnpj_raw);
-  d.origem           = cell(geral, 4, 1);
-  d.licenca_dominio  = cell(geral, 4, 4);
-  d.cod_dominio      = cell(geral, 4, 6);
-  d.grupo_economico  = cell(geral, 5, 1);  // Sim/Não
-  d.grupo_nome       = cell(geral, 5, 2).replace('Caso sim, descreva:', '').replace('HYPERNOVA','HYPERNOVA VENTURES').trim();
-  d.filiais          = cell(geral, 6, 1);
-  d.filiais_desc     = cell(geral, 6, 2).replace('Caso sim, descreva:','').trim();
-  d.abertura         = cell(geral, 7, 1);
-  d.natureza         = cell(geral, 8, 1).replace(/^\d+-\d+ – /,'');
-  d.porte            = cell(geral, 9, 1);
-  d.situacao         = cell(geral, 10, 1);
-  d.municipio        = cell(geral, 11, 1);
-  d.uf               = cell(geral, 12, 1);
-  d.atividade        = cell(geral, 13, 1);
-  d.cert_digital     = cell(geral, 14, 1).replace(/"/g,'');
-  d.complexidade     = cell(geral, 15, 1);
+  // ── Diagnóstico Inicial R2–R15 ───────────────────────────
+  d.razao_social    = c(G,2,1);
+  d.familia         = c(G,2,4);     // "Família 03"
+  d.cnpj_raw        = c(G,3,1);
+  d.cnpj            = formatCNPJ(d.cnpj_raw);
+  d.origem          = c(G,4,1);
+  d.licenca_dominio = c(G,4,4);     // "165133"
+  d.cod_dominio     = c(G,4,6);     // "343"
+  d.grupo_ec_val    = c(G,5,1);     // Sim/Não
+  d.grupo_ec_nome   = c(G,5,2).replace(/^Caso sim, descreva:\s*/i,'');
+  d.filiais_val     = c(G,6,1);
+  d.filiais_desc    = c(G,6,2).replace(/^Caso sim, descreva:\s*/i,'');
+  d.abertura        = c(G,7,1);
 
-  // Quadro societário (R8–R10 cols 3,6)
+  // Quadro Societário R8–R10 (cols 3 e 6)
   d.socios = [];
-  for (let r = 8; r <= 12; r++) {
-    const nome = cell(geral, r, 3);
-    const qual = cell(geral, r, 6);
-    if (nome && qual && qual.toLowerCase().includes('sócio')) {
-      d.socios.push({ nome, qual });
-    }
+  for (let r=8; r<=12; r++) {
+    const nome = c(G,r,3), qual = c(G,r,6);
+    if (nome && qual && qual.toLowerCase().includes('sócio')) d.socios.push({nome, qual});
   }
 
-  // Onboarding (R17–R24)
-  d.regime           = cell(geral, 17, 1);
-  d.competencia      = cell(geral, 18, 1);
-  d.tipo_reuniao     = cell(geral, 19, 1);
-  d.cliente_engajado = cell(geral, 24, 1);
+  d.natureza        = c(G,8,1).replace(/^\d+-\d+\s*[–-]\s*/,'');
+  d.porte           = c(G,9,1);
+  d.situacao        = c(G,10,1);
+  d.municipio       = c(G,11,1);
+  d.uf              = c(G,12,1);
+  d.atividade       = c(G,13,1);
+  d.cert_digital    = c(G,14,1).replace(/"/g,'');
+  d.complexidade    = c(G,15,1);
 
-  // Contexto operacional (R33–R36)
-  d.core_business    = cell(geral, 33, 1);
-  d.tipo_cliente     = cell(geral, 34, 1);
-  d.ponto_focal      = cell(geral, 36, 1);
+  // ── Registros do Onboarding R17–R24 ─────────────────────
+  d.regime          = c(G,17,1);
+  d.competencia     = c(G,18,1);
+  d.tipo_reuniao    = c(G,19,1);
+  d.link_ficha      = c(G,19,2).replace(/^Se Async, link da ficha:\s*/i,'');
+  d.dt_reuniao      = c(G,20,1);
+  d.link_gravacao   = c(G,21,1);
+  d.presentes_cli   = c(G,22,1);
+  d.presentes_bhub  = c(G,23,1);
+  d.engajado        = c(G,24,1);
 
-  // Escrita fiscal — Serviço (R42–R49) — só pega campos com valores preenchidos
-  d.importa_exporta  = { val: cell(geral, 42, 1), obs: cell(geral, 42, 2).replace(/Obs\.?:?\s*/i,'') };
-  d.impostos_atraso  = { val: cell(geral, 43, 1), obs: '' };
-  d.parcelamentos    = { val: cell(geral, 44, 1), obs: '' };
-  d.contratos        = { val: cell(geral, 45, 1), obs: cell(geral, 45, 2).replace(/Obs\.?:?\s*/i,'') };
-  d.sist_nf          = { val: cell(geral, 46, 1), obs: cell(geral, 46, 2).replace(/Obs\.?:?\s*/i,'') };
-  d.subst_trib       = { val: cell(geral, 47, 1), obs: cell(geral, 47, 2).replace(/Obs\.?:?\s*/i,'') };
-  d.beneficio_fiscal = { val: cell(geral, 48, 1), obs: cell(geral, 48, 2).replace(/Obs\.?:?\s*/i,'') };
-  d.instrucao_nf     = { val: cell(geral, 49, 1), obs: '' };
+  // ── Histórico Contábil R27–R31 ───────────────────────────
+  d.cont_anterior   = c(G,27,1);
+  d.distrato_alinhado = c(G,28,1);
+  d.aviso_previo    = c(G,29,1);
+  d.periodo_aviso   = c(G,30,1);
+  d.doc_cont_ant    = c(G,31,1);
 
-  // Folha de pagamento (R88–R100)
-  d.clt              = { val: cell(geral, 88, 1), obs: cell(geral, 88, 2).replace(/Obs\.?:?\s*/i,'') };
-  d.pretende_contratar = { val: cell(geral, 89, 1), obs: cell(geral, 89, 2).replace(/Obs\.?:?\s*/i,'') };
-  d.pjs              = { val: cell(geral, 90, 1), obs: cell(geral, 90, 2).replace(/Obs\.?:?\s*/i,'') };
-  d.dia_pgto         = cell(geral, 91, 1);
-  d.adiantamento     = { val: cell(geral, 92, 1), obs: cell(geral, 92, 2).replace(/Obs\.?:?\s*/i,'') };
-  d.controle_ponto   = { val: cell(geral, 93, 1), obs: cell(geral, 93, 2).replace(/Obs\.?:?\s*/i,'') };
-  d.comissoes        = { val: cell(geral, 94, 1), obs: cell(geral, 94, 2).replace(/Obs\.?:?\s*/i,'') };
-  d.beneficios_esp   = { val: cell(geral, 95, 1), obs: cell(geral, 95, 2).replace(/Obs\.?:?\s*/i,'') };
-  d.rotatividade     = { val: cell(geral, 96, 1), obs: cell(geral, 96, 2).replace(/Obs\.?:?\s*/i,'') };
-  d.sindicato        = { val: cell(geral, 97, 1), obs: cell(geral, 97, 2).replace(/Obs\.?:?\s*/i,'') };
-  d.acordo_coletivo  = { val: cell(geral, 98, 1), obs: '' };
-  d.escalas          = { val: cell(geral, 99, 1), obs: '' };
-  d.prolabore_geral  = cell(geral, 100, 1);
+  // ── Contexto Operacional R33–R36 ─────────────────────────
+  d.core_business   = c(G,33,1);
+  d.tipo_cliente    = c(G,34,1);
+  d.site            = c(G,35,1);
+  d.ponto_focal     = c(G,36,1);
 
-  // ════════════════════════════════════════════════════════
-  // ABA 2 — DADOS TÉCNICOS (FISCAL / DP / CONTÁBIL)
-  // Layout exact row/col positions:
-  //   FISCAL: R2–R16 (col0=label, col1=valor)
-  //   LP: R43–R51 (col0=label, col1=valor, col3=CNAE)
-  //   CONTÁBIL: R54–R71 (col0=label esq, col2=label dir — SEM valores preenchidos neste arquivo)
-  //   DP: R74–R84 (col0=label esq, col1=valor esq, col2=label dir, col3=valor dir)
-  // ════════════════════════════════════════════════════════
+  // ── Escrita Fiscal — SERVIÇO R39–R49 ────────────────────
+  d.fs_servicos_tipos   = c(G,39,1);
+  d.fs_faturamento_prev = c(G,40,1);
+  d.fs_qtd_nf           = c(G,41,1);
+  d.fs_importa_exporta  = {val: c(G,42,1), obs: cleanObs(c(G,42,2))};
+  d.fs_imp_atraso       = {val: c(G,43,1), obs: ''};
+  d.fs_parcelamentos    = {val: c(G,44,1), obs: ''};
+  d.fs_contratos        = {val: c(G,45,1), obs: cleanObs(c(G,45,2))};
+  d.fs_sist_nf          = {val: c(G,46,1), obs: cleanObs(c(G,46,2))};
+  d.fs_subst_trib       = {val: c(G,47,1), obs: cleanObs(c(G,47,2))};
+  d.fs_regime_esp       = {val: c(G,48,1), obs: cleanObs(c(G,48,2))};
+  d.fs_instrucao_nf     = {val: c(G,49,1), obs: ''};
 
-  // — FISCAL R2–R16 —
-  d.ccm              = cell(tec, 2, 1);
-  d.ie               = cell(tec, 3, 1);
-  d.sit_federal      = cell(tec, 4, 1);
-  d.sit_estadual     = cell(tec, 5, 1);
-  d.sit_municipal    = cell(tec, 6, 1);
-  d.reinf            = cell(tec, 7, 1);
-  d.perdcomp         = cell(tec, 8, 1);
-  d.sit_ccm          = cell(tec, 9, 1);
-  d.sit_ie           = cell(tec, 10, 1);
-  d.ie_outros_estados= cell(tec, 11, 1);
-  d.proc_federal     = cell(tec, 12, 1);
-  d.proc_estadual    = cell(tec, 13, 1);
-  d.proc_municipal   = cell(tec, 14, 1);
-  d.parcel_fiscal    = cell(tec, 15, 1);
-  d.cprb             = cell(tec, 16, 1);
+  // ── Folha de Pagamento R88–R100 ──────────────────────────
+  d.dp_clt            = {val: c(G,88,1), obs: cleanObs(c(G,88,2))};
+  d.dp_pretende_contr = {val: c(G,89,1), obs: cleanObs(c(G,89,2))};
+  d.dp_pjs            = {val: c(G,90,1), obs: cleanObs(c(G,90,2))};
+  d.dp_dia_pgto       = c(G,91,1);
+  d.dp_adiantamento   = {val: c(G,92,1), obs: cleanObs(c(G,92,2))};
+  d.dp_ponto          = {val: c(G,93,1), obs: cleanObs(c(G,93,2))};
+  d.dp_comissoes      = {val: c(G,94,1), obs: cleanObs(c(G,94,2))};
+  d.dp_beneficios_esp = {val: c(G,95,1), obs: cleanObs(c(G,95,2))};
+  d.dp_rotatividade   = {val: c(G,96,1), obs: cleanObs(c(G,96,2))};
+  d.dp_sindicato      = {val: c(G,97,1), obs: cleanObs(c(G,97,2))};
+  d.dp_acordo_col     = {val: c(G,98,1), obs: ''};
+  d.dp_escalas        = {val: c(G,99,1), obs: ''};
+  d.dp_prolabore      = c(G,100,1);
 
-  // — LUCRO PRESUMIDO R43–R51 —
-  d.irpj_csll        = cell(tec, 44, 1);
-  d.pis_cofins       = cell(tec, 45, 1);
-  d.monofasia        = cell(tec, 46, 1);
-  d.trib_icms_lp     = cell(tec, 47, 1);
-  d.saldo_icms       = cell(tec, 48, 1);
-  d.venc_iss         = cell(tec, 49, 1);
-  d.iss_outros_mun   = cell(tec, 50, 1);
+  // ── Contabilidade R102–R119 ──────────────────────────────
+  d.co_conta_pj       = {val: '', obs: cleanObs(c(G,102,2))};
+  d.co_sist_gestao    = {val: '', obs: cleanObs(c(G,103,2))};
+  d.co_centros_custo  = {val: '', obs: cleanObs(c(G,104,2))};
+  d.co_plano_custom   = {val: '', obs: cleanObs(c(G,105,2))};
+  d.co_demonst_ant    = {val: '', obs: cleanObs(c(G,106,2))};
+  d.co_auditoria      = {val: '', obs: cleanObs(c(G,107,2))};
+  d.co_reconciliacao  = {val: '', obs: cleanObs(c(G,108,2))};
+  d.co_calendario     = {val: '', obs: cleanObs(c(G,109,2))};
+  d.co_relatorio_men  = {val: '', obs: cleanObs(c(G,110,2))};
+  d.co_period_bal     = {val: '', obs: cleanObs(c(G,111,2))};
+  d.co_prazo_bal      = {val: '', obs: cleanObs(c(G,112,2))};
+  d.co_ativos_intang  = c(G,113,1);
+  d.co_scp            = c(G,114,1);
+  d.co_mutuos         = c(G,115,1);
+  d.co_bens_patrim    = c(G,116,1);
+  d.co_controle_est   = c(G,117,1);
+  d.co_qtd_emprest    = c(G,118,1);
+  d.co_obs_geral      = {val: '', obs: cleanObs(c(G,119,2))};
 
-  // CNAEs (col 3, R44–R48)
+  // ── Financeiro R121–R137 ─────────────────────────────────
+  d.fin_instrucao_nf  = {val: '', obs: cleanObs(c(G,121,2))};
+  d.fin_data_fat      = {val: '', obs: cleanObs(c(G,122,2))};
+  d.fin_meios_rec     = c(G,123,1);
+  d.fin_plat_boleto   = {val: '', obs: cleanObs(c(G,124,2))};
+  d.fin_vol_pgto      = c(G,125,1);
+  d.fin_qtd_fornec    = c(G,126,1);
+  d.fin_cartao        = c(G,128,1);
+  d.fin_reembolso     = c(G,130,1);
+  d.fin_pgto_manuais  = c(G,131,1);
+  d.fin_pgto_elet     = c(G,132,1);
+  d.fin_cambio        = c(G,135,1);
+  d.fin_pref_pgto     = {val: '', obs: cleanObs(c(G,137,2))};
+
+  // ════════════════════════════════════════════════════════════
+  //  ABA 2 — DADOS TÉCNICOS  (85 rows × 4 cols)
+  //  Layout: col0=label_A, col1=valor_A, col2=label_B, col3=valor_B
+  // ════════════════════════════════════════════════════════════
+
+  // ── FISCAL R2–R16 ────────────────────────────────────────
+  d.t_ccm             = v1(T,2);
+  d.t_ie              = v1(T,3);
+  d.t_sit_federal     = v1(T,4);
+  d.t_sit_estadual    = v1(T,5);
+  d.t_sit_municipal   = v1(T,6);
+  d.t_reinf           = v1(T,7);
+  d.t_perdcomp        = v1(T,8);
+  d.t_sit_ccm         = v1(T,9);
+  d.t_sit_ie          = v1(T,10);
+  d.t_ie_outros_est   = v1(T,11);
+  d.t_proc_federal    = v1(T,12);
+  d.t_proc_estadual   = v1(T,13);
+  d.t_proc_municipal  = v1(T,14);
+  d.t_parcel_fiscal   = v1(T,15);
+  d.t_cprb            = v1(T,16);
+
+  // ── SIMPLES NACIONAL R19–R28 (quando aplicável) ──────────
+  d.t_sn_anexos       = v1(T,19);
+  d.t_sn_apuracao     = v1(T,20);
+  d.t_sn_exterior     = v1(T,21);
+  d.t_sn_rbt12        = v1(T,22);
+  d.t_sn_rbta         = v1(T,23);
+  d.t_sn_iss_icms_fora= v1(T,24);
+  d.t_sn_acao_rbta    = v1(T,25);
+  d.t_sn_monofasia    = v1(T,26);
+  d.t_sn_trib_icms    = v1(T,27);
+  d.t_sn_obs          = v1(T,28);
+
+  // ── LUCRO REAL R31–R41 ───────────────────────────────────
+  d.t_lr_irpj_csll    = v1(T,31);
+  d.t_lr_pis_cofins   = v1(T,32);
+  d.t_lr_saldo_pc     = v1(T,33);
+  d.t_lr_creditos_pc  = v1(T,34);
+  d.t_lr_monofasia    = v1(T,35);
+  d.t_lr_icms         = v1(T,36);
+  d.t_lr_saldo_icms   = v1(T,37);
+  d.t_lr_venc_iss     = v1(T,38);
+  d.t_lr_iss_outros   = v1(T,39);
+  d.t_lr_energia      = v1(T,40);
+  d.t_lr_obs          = v1(T,41);
+
+  // ── LUCRO PRESUMIDO R44–R51 + CNAEs col3 ─────────────────
+  d.t_lp_irpj_csll    = v1(T,44);
+  d.t_lp_pis_cofins   = v1(T,45);
+  d.t_lp_monofasia    = v1(T,46);
+  d.t_lp_icms         = v1(T,47);
+  d.t_lp_saldo_icms   = v1(T,48);
+  d.t_lp_venc_iss     = v1(T,49);
+  d.t_lp_iss_outros   = v1(T,50);
+  d.t_lp_obs          = v1(T,51);
   d.cnaes = [];
-  for (let r = 44; r <= 53; r++) {
-    const v = cell(tec, r, 3);
-    if (v && v.match(/^\d{2}\.\d{2}/)) d.cnaes.push(v);
-  }
+  for (let r=44; r<=52; r++) { const n=v3(T,r); if(n && n.match(/^\d{2}\.\d{2}/)) d.cnaes.push(n); }
 
-  // — CONTÁBIL R54–R71 (col0 = label, sem valores neste arquivo) —
-  d.cont_recem_const  = cell(tec, 55, 1) || '—';
-  d.cont_sit_fiscal   = cell(tec, 56, 1) || '—';
-  d.cont_anterior     = cell(tec, 57, 1) || '—';
-  d.cont_balancete    = cell(tec, 58, 1) || '—';
-  d.cont_conta_pj     = cell(tec, 59, 1) || '—';
-  d.cont_emprestimos  = cell(tec, 60, 1) || '—';
-  d.cont_emp_socio    = cell(tec, 61, 1) || '—';
-  d.cont_distrib_luc  = cell(tec, 62, 1) || '—';
-  d.cont_plano_contas = cell(tec, 63, 1) || '—';
-  d.cont_sist_gestao  = cell(tec, 64, 1) || '—';
-  d.cont_recepcao_doc = cell(tec, 65, 1) || '—';
-  d.cont_ecd          = cell(tec, 68, 2) || cell(tec, 68, 1) || '—';
-  d.cont_ecf          = cell(tec, 69, 2) || cell(tec, 69, 1) || '—';
-  d.cont_lacunas      = cell(tec, 70, 1) || '—';
+  // ── CONTÁBIL R55–R71 (col0=label, col1=valor, col2=label2, col3=? ) ─
+  d.t_co_recem_const  = v1(T,55);  d.t_co_imobilizado   = v2(T,55);
+  d.t_co_sit_fiscal   = v1(T,56);  d.t_co_relat_men     = v2(T,56);
+  d.t_co_ant          = v1(T,57);
+  d.t_co_balancete    = v1(T,58);
+  d.t_co_conta_pj     = v1(T,59);
+  d.t_co_emprest_cnpj = v1(T,60);
+  d.t_co_emp_socio    = v1(T,61);
+  d.t_co_distrib_luc  = v1(T,62);
+  d.t_co_plano_custom = v1(T,63);
+  d.t_co_sist_gestao  = v1(T,64);
+  d.t_co_recepcao_doc = v1(T,65);
+  d.t_co_ecd          = v1(T,68);  d.t_co_ecd_obs       = cleanObs(v2(T,68));
+  d.t_co_ecf          = v1(T,69);  d.t_co_ecf_obs       = cleanObs(v2(T,69));
+  d.t_co_lacunas      = v1(T,70);  d.t_co_lacunas_obs   = cleanObs(v2(T,70));
+  d.t_co_defis        = v1(T,71);
 
-  // — DEPARTAMENTO PESSOAL R74–R84 —
-  // Layout: col0=label_esq, col1=valor_esq, col2=label_dir, col3=valor_dir
-  d.sit_dp           = cell(tec, 74, 1);   // Situação Fiscal DP
-  d.procuracoes_dp   = cell(tec, 74, 3);   // Procurações (e-CAC, FGTS...)
-  d.anexo_simples    = cell(tec, 75, 1);   // Anexo Simples
-  d.recem_const      = cell(tec, 75, 3);   // Cliente recém-constituído
-  d.prolabore_dp     = cell(tec, 76, 1);   // Pró Labore
-  d.dctfweb          = cell(tec, 76, 3);   // DCTFWeb de abertura
-  d.parcel_dp        = cell(tec, 77, 1);   // Parcelamento DP
-  d.clt_dp           = cell(tec, 77, 3);   // CLT (label — valor vazio = sem CLT)
-  d.crf              = cell(tec, 78, 1);   // Emissão de CRF
-  d.sind_dp          = cell(tec, 78, 3);   // Sindicato (label — valor indica qtd)
-  d.enquad_sind      = cell(tec, 79, 1);   // Enquadramento Sindical
-  d.estagiarios_dp   = cell(tec, 79, 3);   // Estagiários
-  d.esocial          = cell(tec, 80, 1);   // eSocial
-  d.rpa_dp           = cell(tec, 80, 3);   // RPA
-  d.e_consig         = cell(tec, 81, 1);   // E-Consignado
-  d.qtd_vidas        = cell(tec, 81, 3);   // Quantidade de vidas
-  d.fgts_aberto      = cell(tec, 82, 1);   // FGTS em aberto
-  d.folha_lancamentos= cell(tec, 82, 3);   // Folha possui lançamentos
-  d.data_pgto_dp     = cell(tec, 83, 1);   // Data de pagamento da folha
-  d.envio_doc_dp     = cell(tec, 83, 3);   // Envio de documentação
-  d.adiant_dp        = cell(tec, 84, 1);   // Adiantamento salarial
-  d.login_emp_web    = cell(tec, 84, 3);   // Login Empregador Web
+  // ── DEPARTAMENTO PESSOAL R74–R84 ─────────────────────────
+  // col0=label_esq, col1=valor_esq, col2=label_dir, col3=valor_dir
+  d.t_dp_sit_fiscal   = v1(T,74);  d.t_dp_procuracoes   = v3(T,74);
+  d.t_dp_anexo_sn     = v1(T,75);  d.t_dp_recem_const   = v3(T,75);
+  d.t_dp_prolabore    = v1(T,76);  d.t_dp_dctfweb       = v3(T,76);
+  d.t_dp_parcelamento = v1(T,77);  d.t_dp_clt           = v3(T,77);  // label apenas → sem valor = sem CLT
+  d.t_dp_crf          = v1(T,78);  d.t_dp_sindicato     = v3(T,78);  // label apenas
+  d.t_dp_enquad_sind  = v1(T,79);  d.t_dp_estagiarios   = v3(T,79);  // label apenas
+  d.t_dp_esocial      = v1(T,80);  d.t_dp_rpa           = v3(T,80);  // label apenas
+  d.t_dp_econsig      = v1(T,81);  d.t_dp_qtd_vidas     = v3(T,81);  // label apenas
+  d.t_dp_fgts_aberto  = v1(T,82);  d.t_dp_folha_lanc    = v3(T,82);  // label apenas
+  d.t_dp_data_pgto    = v1(T,83);  d.t_dp_envio_doc     = v3(T,83);  // label apenas
+  d.t_dp_adiantamento = v1(T,84);  d.t_dp_login_emp_web = v3(T,84);  // label apenas
 
-  // ════════════════════════════════════════════════════════
-  // ABA: FICHA TÉCNICA IMPLANTAÇÃO DP — Checklist
-  // ════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════
+  //  FICHA IMPLANTAÇÃO DP — Checklist parametrização
+  // ════════════════════════════════════════════════════════════
   d.dpCheck = [];
-  let inParam = false;
-  for (const row of dpImpl) {
-    const label  = String(row[0] || '').trim();
-    const status = String(row[3] || '').trim().toLowerCase();
-    if (label === 'Parametrização Domínio' || label === 'Parametrização Gestta') { inParam = true; continue; }
-    if (inParam && label && (status === 'true' || status === 'false')) {
-      d.dpCheck.push({ label, done: status === 'true' });
-    }
+  let inP = false;
+  for (const row of DP) {
+    const lbl = String(row[0]||'').trim();
+    const st  = String(row[3]||'').trim().toLowerCase();
+    if (lbl === 'Parametrização Domínio' || lbl === 'Parametrização Gestta') { inP = true; continue; }
+    if (inP && lbl && (st === 'true' || st === 'false')) d.dpCheck.push({label: lbl, done: st === 'true'});
   }
 
   return d;
@@ -489,81 +512,72 @@ function formatCNPJ(v) {
   return v;
 }
 
-// ── Renderer ────────────────────────────────────────────────
+// ── Renderer ─────────────────────────────────────────────────
 function renderReport(d) {
   document.getElementById('upload-screen').style.display = 'none';
   document.getElementById('report-screen').style.display = 'block';
   document.getElementById('tb-client-name').textContent = d.razao_social || 'Cliente';
 
-  // ── Helpers ────────────────────────────────────────────
-  const sim  = v => v?.toLowerCase() === 'sim';
-  const nao  = v => v?.toLowerCase() === 'não' || v?.toLowerCase() === 'nao';
-  const ok   = v => v?.toLowerCase().includes('ok') || v?.toLowerCase().includes('outorga');
-  const reg  = v => v?.toLowerCase().includes('regular') || v?.toLowerCase().includes('ativo') || v?.toLowerCase().includes('ativa');
-  const praz = v => v?.toLowerCase().includes('prazo');
+  // micro-helpers
+  const sim  = v => String(v||'').toLowerCase() === 'sim';
+  const nao  = v => ['não','nao'].includes(String(v||'').toLowerCase());
+  const ok   = v => String(v||'').toLowerCase().includes('ok') || String(v||'').toLowerCase().includes('outorga');
+  const reg  = v => String(v||'').toLowerCase().includes('regular') || String(v||'').toLowerCase().includes('ativ');
+  const praz = v => String(v||'').toLowerCase().includes('prazo');
+  const hasV = v => v && String(v).trim() !== '' && String(v).trim() !== '—';
 
-  // ── Build alerts ────────────────────────────────────────
+  // ── Alerts ──────────────────────────────────────────────
   const crits = [], warns = [], infos = [], oks = [];
 
-  // Críticos
-  if (d.perdcomp?.toUpperCase() === 'SIM')       crits.push('PERDCOMP em análise ou com saldo — verificar com fiscal antes de iniciar operação.');
-  if (sim(d.impostos_atraso?.val))               crits.push('Impostos ou obrigações em atraso — avaliar passivo antes do início.');
-  if (sim(d.rotatividade?.val))                  crits.push('Alta rotatividade ou passivo trabalhista relevante reportado.');
+  if (d.t_perdcomp?.toUpperCase() === 'SIM')          crits.push('PERDCOMP em análise ou com saldo — verificar com fiscal antes de iniciar.');
+  if (sim(d.fs_imp_atraso?.val))                       crits.push('Impostos ou obrigações em atraso — avaliar passivo antes do início.');
+  if (sim(d.dp_rotatividade?.val))                     crits.push('Alta rotatividade ou passivo trabalhista relevante.');
+  if (sim(d.fs_importa_exporta?.val))                  warns.push('Realiza importação/exportação — atenção a câmbio e obrigações específicas.');
+  if (sim(d.fs_subst_trib?.val))                       warns.push('Substituição Tributária, DIFAL ou retenções relevantes.');
+  if (sim(d.fs_regime_esp?.val))                       warns.push('Regime especial ou benefício fiscal — verificar parametrização no Domínio.');
+  if (sim(d.fs_parcelamentos?.val))                    warns.push('Parcelamento de impostos em aberto.');
+  if (sim(d.grupo_ec_val))                             warns.push(`Grupo econômico: ${d.grupo_ec_nome||'verificar'} — avaliar impactos fiscais e contábeis.`);
+  if (d.dp_sindicato?.obs?.toLowerCase().includes('validar')) warns.push('Enquadramento sindical a validar conforme CNAE/atividade.');
+  if (d.dp_clt?.obs)                                   warns.push(`DP — CLT: ${d.dp_clt.obs}`);
+  if (d.dp_pretende_contr?.obs)                        warns.push(`DP — Contratação futura: ${d.dp_pretende_contr.obs}`);
+  if (sim(d.t_dp_recem_const))                         infos.push(`Empresa recém-constituída. DCTFWeb abertura: ${d.t_dp_dctfweb||'verificar'}.`);
+  if (d.tipo_reuniao?.toLowerCase().includes('async')) infos.push('Onboarding assíncrono — confirmar completude das informações.');
+  if (parseInt(d.complexidade) >= 3)                   infos.push(`Complexidade ${d.complexidade} — atenção redobrada na implantação.`);
+  if (d.licenca_dominio)                               infos.push(`Licença Domínio: ${d.licenca_dominio} · Cód. cliente: ${d.cod_dominio||'—'} · Família: ${d.familia||'—'}`);
+  if (reg(d.t_sit_federal))   oks.push('Situação fiscal federal regular.');
+  if (reg(d.t_sit_estadual))  oks.push('Situação fiscal estadual regular.');
+  if (reg(d.t_sit_municipal)) oks.push('Situação fiscal municipal regular.');
+  if (ok(d.t_proc_federal))   oks.push('Procuração federal outorgada (OK).');
+  if (ok(d.t_proc_estadual))  oks.push('Acesso estadual via certificado digital (OK).');
+  if (ok(d.t_proc_municipal)) oks.push('Acesso municipal via certificado digital (OK).');
+  if (reg(d.t_dp_crf))        oks.push('CRF regular.');
+  if (d.t_dp_procuracoes)     oks.push(`Procurações DP: ${d.t_dp_procuracoes}.`);
+  if (nao(d.dp_clt?.val))     oks.push('Sem funcionários CLT no momento.');
+  if (nao(d.dp_pjs?.val))     oks.push('Sem PJs/freelancers registrados.');
 
-  // Atenção
-  if (sim(d.importa_exporta?.val))               warns.push('Realiza importação/exportação — atenção a câmbio, obrigações específicas e posição eSocial.');
-  if (sim(d.subst_trib?.val))                    warns.push('Operações com Substituição Tributária, DIFAL ou retenções relevantes.');
-  if (sim(d.beneficio_fiscal?.val))              warns.push('Possui regime especial ou benefício fiscal — verificar parametrização específica no Domínio.');
-  if (sim(d.parcelamentos?.val))                 warns.push('Parcelamento de impostos em aberto.');
-  if (sim(d.grupo_economico))                    warns.push(`Grupo econômico: ${d.grupo_nome || 'verificar'} — avaliar impactos fiscais e contábeis entre as empresas.`);
-  if (d.sindicato?.obs?.toLowerCase().includes('validar')) warns.push('Enquadramento sindical a validar conforme CNAE/atividade preponderante.');
-  if (d.clt?.obs)                                warns.push(`DP — CLT: ${d.clt.obs}`);
-  if (d.pretende_contratar?.obs)                 warns.push(`DP — Contratação futura: ${d.pretende_contratar.obs}`);
-
-  // Informativo
-  if (sim(d.recem_const))                        infos.push('Empresa recém-constituída — sem histórico anterior. DCTFWeb de abertura: ' + (d.dctfweb || 'verificar') + '.');
-  if (d.tipo_reuniao?.toLowerCase().includes('async')) infos.push('Onboarding assíncrono — confirmar completude e qualidade das informações preenchidas pelo cliente.');
-  if (d.complexidade >= '3')                     infos.push(`Complexidade ${d.complexidade} — cliente exige atenção redobrada na implantação.`);
-  if (d.licenca_dominio)                         infos.push(`Licença Domínio: ${d.licenca_dominio} · Código cliente: ${d.cod_dominio || '—'}`);
-
-  // OK
-  if (reg(d.sit_federal))   oks.push('Situação fiscal federal regular.');
-  if (reg(d.sit_estadual))  oks.push('Situação fiscal estadual regular.');
-  if (reg(d.sit_municipal)) oks.push('Situação fiscal municipal regular.');
-  if (ok(d.proc_federal))   oks.push('Procuração federal outorgada.');
-  if (ok(d.proc_estadual))  oks.push('Acesso estadual confirmado via certificado digital.');
-  if (ok(d.proc_municipal)) oks.push('Acesso municipal confirmado via certificado digital.');
-  if (reg(d.crf))           oks.push('CRF regular.');
-  if (d.procuracoes_dp)     oks.push(`Procurações DP: ${d.procuracoes_dp}.`);
-  if (nao(d.clt?.val))      oks.push('Sem funcionários CLT — folha simplificada no momento.');
-  if (nao(d.pjs?.val))      oks.push('Sem PJs/freelancers registrados.');
-
-  // ── Build HTML ──────────────────────────────────────────
+  // ── Build HTML ───────────────────────────────────────────
   let html = '';
 
+  const dtAb = d.abertura ? (() => { try { return new Date(d.abertura).toLocaleDateString('pt-BR'); } catch(e) { return d.abertura; } })() : '—';
+  const comp = d.competencia ? (() => { try { return new Date(d.competencia).toLocaleDateString('pt-BR',{month:'short',year:'numeric'}); } catch(e) { return d.competencia; } })() : '—';
+
   // Hero
-  const dtAb  = d.abertura ? new Date(d.abertura).toLocaleDateString('pt-BR') : '—';
-  const comp  = d.competencia ? new Date(d.competencia).toLocaleDateString('pt-BR',{month:'short',year:'numeric'}) : '—';
   html += `
   <div class="hero">
     <div class="hero-eyebrow">Passagem de Bastão — Operação</div>
-    <div class="hero-name">${d.razao_social || 'Cliente'}<em>.</em></div>
-    <div style="font-size:13px;color:rgba(255,255,255,.45);margin-top:4px">${d.cnpj} &nbsp;·&nbsp; ${d.municipio}/${d.uf} &nbsp;·&nbsp; Competência inicial: ${comp}</div>
+    <div class="hero-name">${d.razao_social||'Cliente'}<em>.</em></div>
+    <div style="font-size:13px;color:rgba(255,255,255,.45);margin-top:4px">${d.cnpj} &nbsp;·&nbsp; ${d.municipio||''}/${d.uf||''} &nbsp;·&nbsp; Competência: ${comp} &nbsp;·&nbsp; Abertura: ${dtAb}</div>
     <div class="hero-pills">
-      <div class="pill">${d.regime || '—'}</div>
-      <div class="pill">${d.atividade || '—'}</div>
-      <div class="pill">${d.natureza || '—'}</div>
-      <div class="pill">Família ${d.familia || '—'}</div>
-      <div class="pill">Complexidade ${d.complexidade || '—'}</div>
-      ${sim(d.grupo_economico) ? '<div class="pill red">Grupo Econômico</div>' : ''}
-      ${sim(d.recem_const) ? '<div class="pill red">Recém-constituída</div>' : ''}
+      ${[d.regime, d.atividade, d.natureza, `Família ${d.familia||'—'}`, `Complexidade ${d.complexidade||'—'}`].filter(Boolean).map(p=>`<div class="pill">${p}</div>`).join('')}
+      ${sim(d.grupo_ec_val) ? '<div class="pill red">Grupo Econômico</div>' : ''}
+      ${sim(d.t_dp_recem_const) ? '<div class="pill red">Recém-constituída</div>' : ''}
     </div>
   </div>`;
 
   // Alerts
-  if (crits.length || warns.length || infos.length || oks.length) {
+  if (crits.length||warns.length||infos.length||oks.length) {
     html += '<div class="alerts">';
-    crits.forEach(a => html += `<div class="alert alert-crit"><div class="alert-icon">🚨</div><div class="alert-body"><strong>Ponto Crítico — </strong>${a}</div></div>`);
+    crits.forEach(a => html += `<div class="alert alert-crit"><div class="alert-icon">🚨</div><div class="alert-body"><strong>Crítico — </strong>${a}</div></div>`);
     warns.forEach(a => html += `<div class="alert alert-warn"><div class="alert-icon">⚠️</div><div class="alert-body"><strong>Atenção — </strong>${a}</div></div>`);
     infos.forEach(a => html += `<div class="alert alert-info"><div class="alert-icon">ℹ️</div><div class="alert-body">${a}</div></div>`);
     oks.forEach(a   => html += `<div class="alert alert-ok"><div class="alert-icon">✅</div><div class="alert-body">${a}</div></div>`);
@@ -572,159 +586,273 @@ function renderReport(d) {
 
   html += '<div class="sections-grid">';
 
-  // ── 1. Dados Cadastrais ─────────────────────────────────
-  html += card('📋 Dados Cadastrais', [
+  // ── 1. Identificação ─────────────────────────────────────
+  html += card('📋 Identificação e Onboarding', [
     ['Razão Social',      d.razao_social],
     ['CNPJ',              d.cnpj],
     ['Data de Abertura',  dtAb],
-    ['Município / UF',    `${d.municipio} / ${d.uf}`],
-    ['Regime Tributário', d.regime,    'blue'],
+    ['Município / UF',    `${d.municipio||'—'} / ${d.uf||'—'}`],
+    ['Regime Tributário', d.regime,     'blue'],
     ['Natureza Jurídica', d.natureza],
     ['Porte',             d.porte],
-    ['Situação Cadastral',d.situacao,  reg(d.situacao)?'green':'red'],
+    ['Situação Cadastral',d.situacao,   reg(d.situacao)?'green':'red'],
     ['Cert. Digital',     d.cert_digital, d.cert_digital?.toLowerCase().includes('sim')?'green':'amber'],
-    ['Família',           d.familia],
+    ['Família',           d.familia,    'blue'],
+    ['Licença Domínio',   d.licenca_dominio, 'blue'],
+    ['Cód. Cliente Dom.', d.cod_dominio, 'blue'],
     ['Complexidade',      d.complexidade],
     ['Origem',            d.origem],
+    ['Tipo de Cliente',   d.tipo_cliente],
     ['Onboarding',        d.tipo_reuniao],
-    ['Cliente engajado',  d.cliente_engajado, sim(d.cliente_engajado)?'green':'amber'],
-    ['Contato principal', d.ponto_focal],
-    ['Tipo de cliente',   d.tipo_cliente],
+    ['Cliente engajado',  d.engajado,   sim(d.engajado)?'green':'amber'],
+    ['Ponto focal',       d.ponto_focal],
+    ['Competência Inicial', comp],
   ]);
 
-  // ── 2. Contexto do Negócio ──────────────────────────────
-  let cHtml = '';
-  if (d.core_business) cHtml += `<div class="dr"><div class="dk">Core Business</div><div class="dv long">${d.core_business}</div></div>`;
-  cHtml += row('Atividade',           d.atividade);
-  cHtml += row('Grupo Econômico',     sim(d.grupo_economico) ? `Sim — ${d.grupo_nome||'verificar'}` : 'Não',  sim(d.grupo_economico)?'amber':'green');
-  cHtml += row('Filiais',             d.filiais,  sim(d.filiais)?'amber':'green');
-  cHtml += row('Importação/Export.',  d.importa_exporta?.val, sim(d.importa_exporta?.val)?'amber':'green');
-  cHtml += row('Contratos c/ clientes', d.contratos?.val, sim(d.contratos?.val)?'blue':'');
-  cHtml += row('Sistema emissor NF',  d.sist_nf?.val);
-  cHtml += row('Impostos em atraso',  d.impostos_atraso?.val, nao(d.impostos_atraso?.val)?'green':'red');
-  cHtml += row('Parcelamentos',       d.parcelamentos?.val,   nao(d.parcelamentos?.val)?'green':'amber');
-  cHtml += row('Subst. Tributária',   d.subst_trib?.val,      nao(d.subst_trib?.val)?'green':'amber');
-  cHtml += row('Benefício fiscal',    d.beneficio_fiscal?.val,nao(d.beneficio_fiscal?.val)?'green':'amber');
-  if (d.cnaes?.length) {
-    cHtml += `<div class="dr"><div class="dk">CNAEs</div><div class="dv" style="font-size:11px;line-height:1.8">${d.cnaes.join('<br>')}</div></div>`;
-  }
-  html += secCard('🏢 Contexto do Negócio', cHtml);
-
-  // ── 3. Quadro Societário ────────────────────────────────
+  // ── 2. Quadro Societário ─────────────────────────────────
   let sHtml = '';
-  if (d.socios?.length) {
-    d.socios.forEach(s => { sHtml += row(s.qual, s.nome); });
-  } else {
-    sHtml = '<div style="font-size:13px;color:var(--muted)">Não identificado</div>';
-  }
-  sHtml += row('Pró-labore (sócios)', d.prolabore_dp || d.prolabore_geral, nao(d.prolabore_dp||d.prolabore_geral)?'gray':'amber');
+  if (d.socios?.length) d.socios.forEach(s => { sHtml += row(s.qual, s.nome); });
+  else sHtml = '<div style="font-size:13px;color:var(--muted)">Não identificado</div>';
+  sHtml += row('Grupo Econômico', sim(d.grupo_ec_val)?`Sim — ${d.grupo_ec_nome||'verificar'}`:'Não', sim(d.grupo_ec_val)?'amber':'green');
+  sHtml += row('Filiais', d.filiais_val, nao(d.filiais_val)?'green':'amber');
+  sHtml += row('Pró-labore (Dados Gerais)', d.dp_prolabore, nao(d.dp_prolabore)?'gray':'amber');
+  sHtml += row('Pró-labore (Dados Técnicos)', d.t_dp_prolabore, nao(d.t_dp_prolabore)?'gray':'amber');
   html += secCard('👥 Quadro Societário', sHtml);
 
-  // ── 4. Fiscal — Situação e Procurações ──────────────────
-  html += card('🏛️ Situação Fiscal e Procurações', [
-    ['Sit. Federal',       d.sit_federal,   colorSit(d.sit_federal)],
-    ['Sit. Estadual',      d.sit_estadual,  colorSit(d.sit_estadual)],
-    ['Sit. Municipal',     d.sit_municipal, colorSit(d.sit_municipal)],
-    ['Nº CCM',             d.ccm],
-    ['Sit. CCM',           d.sit_ccm,       colorSit(d.sit_ccm)],
-    ['Nº IE',              d.ie || '—'],
-    ['IE outros estados',  d.ie_outros_estados || 'Não'],
-    ['Proc. Federal',      d.proc_federal,  ok(d.proc_federal)?'green':'amber'],
-    ['Proc. Estadual',     d.proc_estadual, ok(d.proc_estadual)?'green':'amber'],
-    ['Proc. Municipal',    d.proc_municipal,ok(d.proc_municipal)?'green':'amber'],
-    ['PERDCOMP',           d.perdcomp,      d.perdcomp?.toUpperCase()==='SIM'?'red':'green'],
-    ['REINF (aluguel)',    d.reinf,         d.reinf?.toLowerCase().includes('não')?'green':'amber'],
-    ['Parcelamento fiscal',d.parcel_fiscal, d.parcel_fiscal?.toLowerCase().includes('n/a')||nao(d.parcel_fiscal)?'green':'amber'],
-    ['CPRB',               d.cprb,          d.cprb?.toUpperCase()==='NÃO'?'gray':'amber'],
+  // ── 3. Contexto do Negócio ───────────────────────────────
+  let cHtml = '';
+  if (d.core_business) cHtml += `<div class="dr"><div class="dk">Core Business</div><div class="dv long">${d.core_business}</div></div>`;
+  if (d.fs_servicos_tipos && d.fs_servicos_tipos !== d.core_business)
+    cHtml += `<div class="dr"><div class="dk">Serviços prestados</div><div class="dv long">${d.fs_servicos_tipos}</div></div>`;
+  cHtml += row('Faturamento previsível?', d.fs_faturamento_prev);
+  cHtml += row('Qtd NF / mês',           d.fs_qtd_nf);
+  cHtml += row('Importação/Exportação',  d.fs_importa_exporta?.val, sim(d.fs_importa_exporta?.val)?'amber':'green');
+  cHtml += row('Contratos c/ clientes',  d.fs_contratos?.val,  sim(d.fs_contratos?.val)?'blue':'');
+  cHtml += row('Sistema emissor NF',     d.fs_sist_nf?.val);
+  cHtml += row('Impostos em atraso',     d.fs_imp_atraso?.val, nao(d.fs_imp_atraso?.val)?'green':'red');
+  cHtml += row('Parcelamentos',          d.fs_parcelamentos?.val, nao(d.fs_parcelamentos?.val)?'green':'amber');
+  cHtml += row('Subst. Tributária/DIFAL',d.fs_subst_trib?.val,  nao(d.fs_subst_trib?.val)?'green':'amber');
+  cHtml += row('Regime especial/Benef.', d.fs_regime_esp?.val,  nao(d.fs_regime_esp?.val)?'green':'amber');
+  cHtml += row('Instrução p/ emitir NF', d.fs_instrucao_nf?.val,nao(d.fs_instrucao_nf?.val)?'green':'amber');
+  cHtml += row('Site institucional',     d.site);
+  html += secCard('🏢 Contexto do Negócio', cHtml);
+
+  // ── 4. Histórico Contábil ────────────────────────────────
+  html += card('📂 Histórico Contábil', [
+    ['Contabilidade anterior',   d.cont_anterior,      nao(d.cont_anterior)?'green':'amber'],
+    ['Distrato alinhado',        d.distrato_alinhado,  sim(d.distrato_alinhado)?'green':''],
+    ['Aviso prévio',             d.aviso_previo],
+    ['Período aviso prévio',     d.periodo_aviso],
+    ['Doc. contabilidade ant.',  d.doc_cont_ant],
   ]);
 
-  // ── 5. Apuração Lucro Presumido ─────────────────────────
-  if (d.irpj_csll || d.pis_cofins || d.venc_iss) {
-    html += card('📊 Apuração — Lucro Presumido', [
-      ['IRPJ / CSLL',           d.irpj_csll],
-      ['PIS / COFINS',          d.pis_cofins, 'blue'],
-      ['Monofasia PIS/COFINS',  d.monofasia],
-      ['Tributação ICMS',       d.trib_icms_lp || '—'],
-      ['Vencimento ISS',        d.venc_iss ? `Dia ${d.venc_iss}` : ''],
-      ['ISS outros municípios', d.iss_outros_mun, d.iss_outros_mun?.toUpperCase()==='NÃO'?'green':'amber'],
+  // ── 5. Fiscal — Situação e Procurações ───────────────────
+  html += card('🏛️ Fiscal — Situação e Procurações', [
+    ['Sit. Federal',       d.t_sit_federal,    colorSit(d.t_sit_federal)],
+    ['Sit. Estadual',      d.t_sit_estadual,   colorSit(d.t_sit_estadual)],
+    ['Sit. Municipal',     d.t_sit_municipal,  colorSit(d.t_sit_municipal)],
+    ['Nº CCM',             d.t_ccm],
+    ['Sit. CCM',           d.t_sit_ccm,        colorSit(d.t_sit_ccm)],
+    ['Nº IE',              d.t_ie||'—'],
+    ['IE outros estados',  d.t_ie_outros_est||'Não informado'],
+    ['Proc. Federal',      d.t_proc_federal,   ok(d.t_proc_federal)?'green':'amber'],
+    ['Proc. Estadual',     d.t_proc_estadual,  ok(d.t_proc_estadual)?'green':'amber'],
+    ['Proc. Municipal',    d.t_proc_municipal, ok(d.t_proc_municipal)?'green':'amber'],
+    ['PERDCOMP',           d.t_perdcomp,       d.t_perdcomp?.toUpperCase()==='SIM'?'red':'green'],
+    ['REINF (aluguel)',    d.t_reinf,          d.t_reinf?.toLowerCase().includes('não')?'green':'amber'],
+    ['Parcelamento fiscal',d.t_parcel_fiscal,  d.t_parcel_fiscal?.toLowerCase().includes('n/a')||nao(d.t_parcel_fiscal)?'green':'amber'],
+    ['CPRB',               d.t_cprb,           d.t_cprb?.toUpperCase()==='NÃO'?'gray':'amber'],
+  ]);
+
+  // ── 6. Apuração Fiscal ───────────────────────────────────
+  // Show LP if has data, LR if has data, SN if has data
+  const hasLP = d.t_lp_irpj_csll||d.t_lp_pis_cofins||d.t_lp_venc_iss;
+  const hasLR = d.t_lr_irpj_csll||d.t_lr_pis_cofins;
+  const hasSN = d.t_sn_anexos||d.t_sn_apuracao;
+
+  if (hasLP) {
+    let apurHtml = '';
+    apurHtml += row('IRPJ / CSLL',        d.t_lp_irpj_csll,  'blue');
+    apurHtml += row('PIS / COFINS',       d.t_lp_pis_cofins, 'blue');
+    apurHtml += row('Monofasia PIS/COFINS',d.t_lp_monofasia);
+    apurHtml += row('Tributação ICMS',    d.t_lp_icms||'—');
+    apurHtml += row('Vencimento ISS',     d.t_lp_venc_iss ? `Dia ${d.t_lp_venc_iss}` : '');
+    apurHtml += row('ISS outros municípios', d.t_lp_iss_outros, d.t_lp_iss_outros?.toUpperCase()==='NÃO'?'green':'amber');
+    if (d.t_lp_obs) apurHtml += `<div class="dr"><div class="dk">Observações LP</div><div class="dv long">${d.t_lp_obs}</div></div>`;
+    if (d.cnaes?.length) apurHtml += `<div class="dr"><div class="dk">CNAEs</div><div class="dv" style="font-size:11px;line-height:1.8">${d.cnaes.join('<br>')}</div></div>`;
+    html += secCard('📊 Apuração — Lucro Presumido', apurHtml);
+  }
+  if (hasLR) {
+    html += card('📊 Apuração — Lucro Real', [
+      ['IRPJ / CSLL',       d.t_lr_irpj_csll],
+      ['PIS / COFINS',      d.t_lr_pis_cofins, 'blue'],
+      ['Saldo PIS/COFINS',  d.t_lr_saldo_pc],
+      ['Créditos PIS/COFINS',d.t_lr_creditos_pc],
+      ['Tributação ICMS',   d.t_lr_icms],
+      ['Vencimento ISS',    d.t_lr_venc_iss ? `Dia ${d.t_lr_venc_iss}` : ''],
+      ['ISS outros mun.',   d.t_lr_iss_outros],
+      ['Energia elétrica',  d.t_lr_energia],
+    ]);
+  }
+  if (hasSN) {
+    html += card('📊 Apuração — Simples Nacional', [
+      ['Anexos aplicáveis',   d.t_sn_anexos],
+      ['Regime apuração rec.',d.t_sn_apuracao],
+      ['Serv./Venda exterior',d.t_sn_exterior],
+      ['RBT 12',              d.t_sn_rbt12],
+      ['RBTA',                d.t_sn_rbta],
+      ['ISS/ICMS por fora',   d.t_sn_iss_icms_fora],
+      ['Ação RBTA/Sublimite', d.t_sn_acao_rbta],
+      ['Ciência monofasia',   d.t_sn_monofasia],
+      ['Tributação ICMS',     d.t_sn_trib_icms],
     ]);
   }
 
-  // ── 6. Departamento Pessoal ─────────────────────────────
-  // All data now from tec rows 74–84 with exact col positions
-  html += card('👤 Departamento Pessoal', [
-    ['Situação Fiscal DP',   d.sit_dp,          colorSit(d.sit_dp)],
-    ['Procurações',          d.procuracoes_dp,  d.procuracoes_dp?'green':'amber'],
-    ['Recém-constituído',    d.recem_const,     sim(d.recem_const)?'blue':'gray'],
-    ['DCTFWeb abertura',     d.dctfweb,         praz(d.dctfweb)?'green':'amber'],
-    ['eSocial',              d.esocial,         d.esocial?.toLowerCase().includes('sem')?'gray':'blue'],
-    ['CRF',                  d.crf,             colorSit(d.crf)],
-    ['Pró-labore',           d.prolabore_dp,    nao(d.prolabore_dp)?'gray':'amber'],
-    ['Parcelamento DP',      d.parcel_dp,       d.parcel_dp?.toLowerCase().includes('n/a')?'green':'amber'],
-    ['E-Consignado',         d.e_consig || '—'],
-    ['FGTS em aberto',       d.fgts_aberto || '—'],
-    ['Enquad. Sindical',     d.enquad_sind || d.sind_dp || '—'],
-    ['Adiantamento salarial',d.adiant_dp || d.adiantamento?.val || '—', nao(d.adiant_dp||d.adiantamento?.val)?'gray':'blue'],
-    ['Data pgto folha',      d.data_pgto_dp || d.dia_pgto ? `Dia ${d.data_pgto_dp||d.dia_pgto}` : '—'],
-    ['Folha c/ lançamentos', d.folha_lancamentos || '—'],
-    ['Envio documentação',   d.envio_doc_dp || '—'],
-    ['Login Empregador Web', d.login_emp_web || '—'],
-    ['CLT',                  d.clt?.val || 'Não', nao(d.clt?.val)?'green':'blue'],
-    ['Estagiários',          d.estagiarios_dp || d.pjs?.val || 'Não', 'gray'],
-    ['RPA',                  d.rpa_dp || 'Não', 'gray'],
-    ['Qtd. vidas',           d.qtd_vidas || '—'],
-    ['Comissões/HE/Var.',    d.comissoes?.val,  nao(d.comissoes?.val)?'gray':'amber'],
-    ['Rotatividade',         d.rotatividade?.val, nao(d.rotatividade?.val)?'green':'red'],
+  // ── 7. Departamento Pessoal — Dados Gerais ───────────────
+  html += card('👤 DP — Dados Gerais (Aba 1)', [
+    ['CLT',                d.dp_clt?.val,           nao(d.dp_clt?.val)?'green':'blue'],
+    ['Pretende contratar', d.dp_pretende_contr?.val,nao(d.dp_pretende_contr?.val)?'green':'amber'],
+    ['PJs / Freelancers',  d.dp_pjs?.val,           nao(d.dp_pjs?.val)?'green':'blue'],
+    ['Dia pgto folha',     d.dp_dia_pgto ? `Dia ${d.dp_dia_pgto}` : '—'],
+    ['Adiantamento sal.',  d.dp_adiantamento?.val,  nao(d.dp_adiantamento?.val)?'gray':'blue'],
+    ['Controle de ponto',  d.dp_ponto?.val,          nao(d.dp_ponto?.val)?'gray':'blue'],
+    ['Comissões/HE/Var.',  d.dp_comissoes?.val,     nao(d.dp_comissoes?.val)?'gray':'amber'],
+    ['Benefícios específicos',d.dp_beneficios_esp?.val, nao(d.dp_beneficios_esp?.val)?'gray':'amber'],
+    ['Rotatividade/Passivo',d.dp_rotatividade?.val, nao(d.dp_rotatividade?.val)?'green':'red'],
+    ['Sindicato',          d.dp_sindicato?.val,     nao(d.dp_sindicato?.val)?'green':'amber'],
+    ['Acordo coletivo',    d.dp_acordo_col?.val,    nao(d.dp_acordo_col?.val)?'green':'amber'],
+    ['Escalas/Turnos',     d.dp_escalas?.val,       nao(d.dp_escalas?.val)?'green':'amber'],
+    ['Pró-labore',         d.dp_prolabore,          nao(d.dp_prolabore)?'gray':'amber'],
   ]);
 
-  // ── 7. Checklist Parametrização DP ─────────────────────
-  if (d.dpCheck?.length) {
-    const done  = d.dpCheck.filter(x => x.done).length;
-    const total = d.dpCheck.length;
-    const pct   = Math.round(done / total * 100);
-    let ckHtml  = `
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-        <div style="flex:1;background:#E5E7EB;border-radius:4px;height:6px">
-          <div style="width:${pct}%;background:var(--green);border-radius:4px;height:6px;transition:width .3s"></div>
-        </div>
-        <div style="font-size:12px;color:var(--muted);white-space:nowrap">${done}/${total} itens (${pct}%)</div>
-      </div>
-      <div class="ci-list">`;
-    d.dpCheck.forEach(item => {
-      ckHtml += `<div class="ci ${item.done?'done':'pend'}"><div class="ci-dot"></div>${item.label}</div>`;
-    });
-    ckHtml += '</div>';
-    html += `<div class="sec-card full">${secHead('⚙️ Checklist Parametrização DP')}<div class="sec-body">${ckHtml}</div></div>`;
+  // ── 8. Departamento Pessoal — Dados Técnicos ─────────────
+  let dpTecHtml = '';
+  // col1 values (left column)
+  dpTecHtml += row('Situação Fiscal DP',  d.t_dp_sit_fiscal,   colorSit(d.t_dp_sit_fiscal));
+  dpTecHtml += row('Pró-labore',          d.t_dp_prolabore,    nao(d.t_dp_prolabore)?'gray':'amber');
+  dpTecHtml += row('Parcelamento',        d.t_dp_parcelamento, d.t_dp_parcelamento?.toLowerCase().includes('n/a')?'green':'amber');
+  dpTecHtml += row('CRF',                 d.t_dp_crf,          colorSit(d.t_dp_crf));
+  dpTecHtml += row('Enquad. Sindical',    d.t_dp_enquad_sind);
+  dpTecHtml += row('eSocial',             d.t_dp_esocial,      d.t_dp_esocial?.toLowerCase().includes('sem')?'gray':'blue');
+  dpTecHtml += row('E-Consignado',        d.t_dp_econsig||'Não informado');
+  dpTecHtml += row('FGTS em aberto',      d.t_dp_fgts_aberto||'Não informado');
+  dpTecHtml += row('Data pgto folha',     d.t_dp_data_pgto ? `Dia ${d.t_dp_data_pgto}` : '—');
+  dpTecHtml += row('Adiantamento salarial',d.t_dp_adiantamento||'Não informado');
+  // col3 values (right column — labels sem valores = campos a preencher)
+  dpTecHtml += row('Procurações',         d.t_dp_procuracoes,  d.t_dp_procuracoes?'green':'amber');
+  dpTecHtml += row('Recém-constituído',   d.t_dp_recem_const,  sim(d.t_dp_recem_const)?'blue':'green');
+  dpTecHtml += row('DCTFWeb abertura',    d.t_dp_dctfweb,      praz(d.t_dp_dctfweb)?'green':'amber');
+  dpTecHtml += row('CLT (técnico)',       d.t_dp_clt||'Sem valor = Não possui', 'gray');
+  dpTecHtml += row('Sindicato (técnico)', d.t_dp_sindicato||'Sem valor = Não possui', 'gray');
+  dpTecHtml += row('Estagiários',         d.t_dp_estagiarios||'Sem valor = Não possui', 'gray');
+  dpTecHtml += row('RPA',                 d.t_dp_rpa||'Sem valor = Não possui', 'gray');
+  dpTecHtml += row('Qtd. vidas',          d.t_dp_qtd_vidas||'Sem valor');
+  dpTecHtml += row('Folha c/ lançamentos',d.t_dp_folha_lanc||'Sem valor');
+  dpTecHtml += row('Envio documentação',  d.t_dp_envio_doc||'Sem valor');
+  dpTecHtml += row('Login Empregador Web',d.t_dp_login_emp_web||'Sem valor');
+  html += secCard('👤 DP — Dados Técnicos (Aba 2)', dpTecHtml);
+
+  // ── 9. Contábil — Dados Gerais ───────────────────────────
+  html += card('📒 Contábil — Dados Gerais (Aba 1)', [
+    ['Conta bancária PJ',      d.co_conta_pj?.obs||'Não informado'],
+    ['Sistema de gestão',      d.co_sist_gestao?.obs||'Não informado'],
+    ['Centros de custo',       d.co_centros_custo?.obs||'Não informado'],
+    ['Plano contas custom.',   d.co_plano_custom?.obs||'Não informado'],
+    ['Demonstração ant.',      d.co_demonst_ant?.obs||'Não informado'],
+    ['Auditoria/Investidor',   d.co_auditoria?.obs||'Não informado'],
+    ['Reconciliação estoque',  d.co_reconciliacao?.obs||'Não informado'],
+    ['Calendário de fechamento',d.co_calendario?.obs||'Não informado'],
+    ['Relatório mensal',       d.co_relatorio_men?.obs||'Não informado'],
+    ['Periodicidade balancete', d.co_period_bal?.obs||'Não informado'],
+    ['Prazo balancete (dia)',   d.co_prazo_bal?.obs||'Não informado'],
+    ['Ativos intangíveis',     d.co_ativos_intang||'Não informado'],
+    ['SCP',                    d.co_scp||'Não informado'],
+    ['Mútuos coligadas',       d.co_mutuos||'Não informado'],
+    ['Bens patrimoniais',      d.co_bens_patrim||'Não informado'],
+    ['Controle de estoque',    d.co_controle_est||'Não informado'],
+    ['Qtd empréstimos',        d.co_qtd_emprest||'Não informado'],
+  ]);
+
+  // ── 10. Contábil — Dados Técnicos ────────────────────────
+  let coTecHtml = '';
+  coTecHtml += row('Recém-constituído',   d.t_co_recem_const||'Não informado');
+  coTecHtml += row('Controle imobilizado',d.t_co_imobilizado||'Não informado');
+  coTecHtml += row('Situação Fiscal',     d.t_co_sit_fiscal||'Não informado',   colorSit(d.t_co_sit_fiscal));
+  coTecHtml += row('Relatório mensal',    d.t_co_relat_men||'Não informado');
+  coTecHtml += row('Contab. anterior',    d.t_co_ant||'Não informado');
+  coTecHtml += row('Possib. balancete',   d.t_co_balancete||'Não informado');
+  coTecHtml += row('Conta PJ',           d.t_co_conta_pj||'Não informado');
+  coTecHtml += row('Empréstimos CNPJ',    d.t_co_emprest_cnpj||'Não informado');
+  coTecHtml += row('Empréstimo c/ sócio', d.t_co_emp_socio||'Não informado');
+  coTecHtml += row('Distrib. de lucros',  d.t_co_distrib_luc||'Não informado');
+  coTecHtml += row('Plano contas custom.', d.t_co_plano_custom||'Não informado');
+  coTecHtml += row('Sistema de gestão',   d.t_co_sist_gestao||'Não informado');
+  coTecHtml += row('Recepção documentos', d.t_co_recepcao_doc||'Não informado');
+  coTecHtml += `<div class="dr"><div class="dk">ECD</div><div class="dv">${d.t_co_ecd||'Não informado'} ${d.t_co_ecd_obs?`<span style="color:var(--muted);font-size:11px">— ${d.t_co_ecd_obs}</span>`:''}</div></div>`;
+  coTecHtml += `<div class="dr"><div class="dk">ECF</div><div class="dv">${d.t_co_ecf||'Não informado'} ${d.t_co_ecf_obs?`<span style="color:var(--muted);font-size:11px">— ${d.t_co_ecf_obs}</span>`:''}</div></div>`;
+  coTecHtml += row('Lacunas obrig. acess.',d.t_co_lacunas||'Não informado');
+  coTecHtml += row('DEFIS (Simples)',      d.t_co_defis||'Não informado');
+  html += secCard('📒 Contábil — Dados Técnicos (Aba 2)', coTecHtml);
+
+  // ── 11. Financeiro ────────────────────────────────────────
+  const temFin = d.fin_meios_rec||d.fin_vol_pgto||d.fin_qtd_fornec||d.fin_cambio;
+  if (temFin) {
+    html += card('💳 Financeiro — Dados Gerais (Aba 1)', [
+      ['Meios de recebimento',   d.fin_meios_rec||'Não informado'],
+      ['Volume pgtos mensais',   d.fin_vol_pgto||'Não informado'],
+      ['Qtd fornecedores',       d.fin_qtd_fornec||'Não informado'],
+      ['Cartão de crédito PJ',   d.fin_cartao||'Não informado'],
+      ['Reembolso sócios/PF',    d.fin_reembolso||'Não informado'],
+      ['Pgtos manuais/mês',      d.fin_pgto_manuais||'Não informado'],
+      ['Pgtos eletrônicos/mês',  d.fin_pgto_elet||'Não informado'],
+      ['Fechamentos de câmbio',  d.fin_cambio||'Não informado'],
+    ]);
   }
 
-  // ── 8. Observações consolidadas da ficha ────────────────
-  const obsItems = [
-    d.clt?.obs            && `CLT: ${d.clt.obs}`,
-    d.pretende_contratar?.obs && `Contratação futura: ${d.pretende_contratar.obs}`,
-    d.sindicato?.obs      && `Sindicato: ${d.sindicato.obs}`,
-    d.comissoes?.obs      && `Comissões/HE: ${d.comissoes.obs}`,
-    d.beneficios_esp?.obs && `Benefícios: ${d.beneficios_esp.obs}`,
-    d.contratos?.obs      && `Contratos: ${d.contratos.obs}`,
-    d.rotatividade?.obs   && `Rotatividade: ${d.rotatividade.obs}`,
-    d.importa_exporta?.obs&& `Importação/Exportação: ${d.importa_exporta.obs}`,
+  // ── 12. Observações e pontos de atenção ───────────────────
+  const obsItens = [
+    d.dp_clt?.obs             && `CLT: ${d.dp_clt.obs}`,
+    d.dp_pretende_contr?.obs  && `Contratação futura: ${d.dp_pretende_contr.obs}`,
+    d.dp_sindicato?.obs       && `Sindicato: ${d.dp_sindicato.obs}`,
+    d.dp_comissoes?.obs       && `Comissões/HE: ${d.dp_comissoes.obs}`,
+    d.dp_beneficios_esp?.obs  && `Benefícios específicos: ${d.dp_beneficios_esp.obs}`,
+    d.dp_contratos?.obs       && `Contratos: ${d.dp_contratos?.obs}`,
+    d.dp_rotatividade?.obs    && `Rotatividade: ${d.dp_rotatividade.obs}`,
+    d.fs_importa_exporta?.obs && `Importação/Exportação: ${d.fs_importa_exporta.obs}`,
+    d.fs_contratos?.obs       && `Contratos (fiscal): ${d.fs_contratos.obs}`,
+    d.co_obs_geral?.obs       && `Contábil — Obs geral: ${d.co_obs_geral.obs}`,
   ].filter(Boolean);
 
-  if (obsItems.length) {
+  if (obsItens.length) {
     let obHtml = '<div class="ci-list">';
-    obsItems.forEach(o => {
+    obsItens.forEach(o => {
       obHtml += `<div class="ci pend"><div class="ci-dot"></div><div style="font-size:13px">${o}</div></div>`;
     });
     obHtml += '</div>';
     html += `<div class="sec-card full">${secHead('📝 Observações e Pontos de Atenção')}<div class="sec-body">${obHtml}</div></div>`;
   }
 
-  html += '</div>'; // /sections-grid
+  // ── 13. Checklist Parametrização DP ─────────────────────
+  if (d.dpCheck?.length) {
+    const done = d.dpCheck.filter(x=>x.done).length, total = d.dpCheck.length;
+    const pct = Math.round(done/total*100);
+    let ckHtml = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <div style="flex:1;background:#E5E7EB;border-radius:4px;height:6px">
+          <div style="width:${pct}%;background:var(--green);border-radius:4px;height:6px"></div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);white-space:nowrap">${done}/${total} (${pct}%)</div>
+      </div><div class="ci-list">`;
+    d.dpCheck.forEach(item => { ckHtml += `<div class="ci ${item.done?'done':'pend'}"><div class="ci-dot"></div>${item.label}</div>`; });
+    ckHtml += '</div>';
+    html += `<div class="sec-card full">${secHead('⚙️ Checklist Parametrização DP')}<div class="sec-body">${ckHtml}</div></div>`;
+  }
 
+  html += '</div>'; // /sections-grid
   document.getElementById('report-body').innerHTML = html;
-  window.scrollTo({ top: 0 });
+  window.scrollTo({top:0});
 }
 
-// ── Builder helpers ─────────────────────────────────────────
 function colorSit(v) {
   if (!v) return '';
   const vl = v.toLowerCase();
