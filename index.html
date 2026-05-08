@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>BHub · Passagem de Bastão</title>
+<title>BHub · Gerador de Passagem de Bastão</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -584,32 +584,41 @@ function renderReport(d) {
     html += '</div>';
   }
 
+  // ════════════════════════════════════════════════════
+  //  LAYOUT: 3 colunas temáticas
+  //  Linha 1: Identificação | Quadro Societário | Contexto do Negócio + Histórico
+  //  Linha 2: Apuração (full width, centralizado)
+  //  Linha 3: Fiscal Aba1 | Fiscal Aba2
+  //  Linha 4: DP Aba1 | DP Aba2
+  //  Linha 5: Contábil Aba1 | Contábil Aba2
+  //  Linha 6: Financeiro | Obs. + Checklist
+  // ════════════════════════════════════════════════════
+
+  // ── BLOCO GERAL (grid 2 col) ─────────────────────────
   html += '<div class="sections-grid">';
 
-  // ── 1. Identificação ─────────────────────────────────────
   html += card('📋 Identificação e Onboarding', [
-    ['Razão Social',      d.razao_social],
-    ['CNPJ',              d.cnpj],
-    ['Data de Abertura',  dtAb],
-    ['Município / UF',    `${d.municipio||'—'} / ${d.uf||'—'}`],
-    ['Regime Tributário', d.regime,     'blue'],
-    ['Natureza Jurídica', d.natureza],
-    ['Porte',             d.porte],
-    ['Situação Cadastral',d.situacao,   reg(d.situacao)?'green':'red'],
-    ['Cert. Digital',     d.cert_digital, d.cert_digital?.toLowerCase().includes('sim')?'green':'amber'],
-    ['Família',           d.familia,    'blue'],
-    ['Licença Domínio',   d.licenca_dominio, 'blue'],
-    ['Cód. Cliente Dom.', d.cod_dominio, 'blue'],
-    ['Complexidade',      d.complexidade],
-    ['Origem',            d.origem],
-    ['Tipo de Cliente',   d.tipo_cliente],
-    ['Onboarding',        d.tipo_reuniao],
-    ['Cliente engajado',  d.engajado,   sim(d.engajado)?'green':'amber'],
-    ['Ponto focal',       d.ponto_focal],
+    ['Razão Social',        d.razao_social],
+    ['CNPJ',                d.cnpj],
+    ['Data de Abertura',    dtAb],
+    ['Município / UF',      `${d.municipio||'—'} / ${d.uf||'—'}`],
+    ['Regime Tributário',   d.regime,     'blue'],
+    ['Natureza Jurídica',   d.natureza],
+    ['Porte',               d.porte],
+    ['Situação Cadastral',  d.situacao,   reg(d.situacao)?'green':'red'],
+    ['Cert. Digital',       d.cert_digital, d.cert_digital?.toLowerCase().includes('sim')?'green':'amber'],
+    ['Família',             d.familia,    'blue'],
+    ['Licença Domínio',     d.licenca_dominio, 'blue'],
+    ['Cód. Cliente Dom.',   d.cod_dominio, 'blue'],
+    ['Complexidade',        d.complexidade],
+    ['Origem',              d.origem],
+    ['Tipo de Cliente',     d.tipo_cliente],
+    ['Onboarding',          d.tipo_reuniao],
+    ['Cliente engajado',    d.engajado,   sim(d.engajado)?'green':'amber'],
+    ['Ponto focal',         d.ponto_focal],
     ['Competência Inicial', comp],
   ]);
 
-  // ── 2. Quadro Societário ─────────────────────────────────
   let sHtml = '';
   if (d.socios?.length) d.socios.forEach(s => { sHtml += row(s.qual, s.nome); });
   else sHtml = '<div style="font-size:13px;color:var(--muted)">Não identificado</div>';
@@ -617,222 +626,261 @@ function renderReport(d) {
   sHtml += row('Filiais', d.filiais_val, nao(d.filiais_val)?'green':'amber');
   sHtml += row('Pró-labore (Dados Gerais)', d.dp_prolabore, nao(d.dp_prolabore)?'gray':'amber');
   sHtml += row('Pró-labore (Dados Técnicos)', d.t_dp_prolabore, nao(d.t_dp_prolabore)?'gray':'amber');
-  html += secCard('👥 Quadro Societário', sHtml);
+  html += secCard('👥 Quadro Societário e Contexto', sHtml);
 
-  // ── 3. Contexto do Negócio ───────────────────────────────
-  let cHtml = '';
-  if (d.core_business) cHtml += `<div class="dr"><div class="dk">Core Business</div><div class="dv long">${d.core_business}</div></div>`;
-  if (d.fs_servicos_tipos && d.fs_servicos_tipos !== d.core_business)
-    cHtml += `<div class="dr"><div class="dk">Serviços prestados</div><div class="dv long">${d.fs_servicos_tipos}</div></div>`;
-  cHtml += row('Faturamento previsível?', d.fs_faturamento_prev);
-  cHtml += row('Qtd NF / mês',           d.fs_qtd_nf);
-  cHtml += row('Importação/Exportação',  d.fs_importa_exporta?.val, sim(d.fs_importa_exporta?.val)?'amber':'green');
-  cHtml += row('Contratos c/ clientes',  d.fs_contratos?.val,  sim(d.fs_contratos?.val)?'blue':'');
-  cHtml += row('Sistema emissor NF',     d.fs_sist_nf?.val);
-  cHtml += row('Impostos em atraso',     d.fs_imp_atraso?.val, nao(d.fs_imp_atraso?.val)?'green':'red');
-  cHtml += row('Parcelamentos',          d.fs_parcelamentos?.val, nao(d.fs_parcelamentos?.val)?'green':'amber');
-  cHtml += row('Subst. Tributária/DIFAL',d.fs_subst_trib?.val,  nao(d.fs_subst_trib?.val)?'green':'amber');
-  cHtml += row('Regime especial/Benef.', d.fs_regime_esp?.val,  nao(d.fs_regime_esp?.val)?'green':'amber');
-  cHtml += row('Instrução p/ emitir NF', d.fs_instrucao_nf?.val,nao(d.fs_instrucao_nf?.val)?'green':'amber');
-  cHtml += row('Site institucional',     d.site);
-  html += secCard('🏢 Contexto do Negócio', cHtml);
+  html += '</div>';
 
-  // ── 4. Histórico Contábil ────────────────────────────────
+  // ── HISTÓRICO CONTÁBIL — linha separada full width ───
+  html += '<div class="sections-grid" style="margin-top:0">';
   html += card('📂 Histórico Contábil', [
-    ['Contabilidade anterior',   d.cont_anterior,      nao(d.cont_anterior)?'green':'amber'],
-    ['Distrato alinhado',        d.distrato_alinhado,  sim(d.distrato_alinhado)?'green':''],
-    ['Aviso prévio',             d.aviso_previo],
-    ['Período aviso prévio',     d.periodo_aviso],
-    ['Doc. contabilidade ant.',  d.doc_cont_ant],
+    ['Contabilidade anterior',  d.cont_anterior,     nao(d.cont_anterior)?'green':'amber'],
+    ['Distrato alinhado',       d.distrato_alinhado, sim(d.distrato_alinhado)?'green':''],
+    ['Aviso prévio',            d.aviso_previo],
+    ['Período aviso prévio',    d.periodo_aviso],
+    ['Doc. contabilidade ant.', d.doc_cont_ant],
   ]);
 
-  // ── 5. Fiscal — Situação e Procurações ───────────────────
-  html += card('🏛️ Fiscal — Situação e Procurações', [
-    ['Sit. Federal',       d.t_sit_federal,    colorSit(d.t_sit_federal)],
-    ['Sit. Estadual',      d.t_sit_estadual,   colorSit(d.t_sit_estadual)],
-    ['Sit. Municipal',     d.t_sit_municipal,  colorSit(d.t_sit_municipal)],
-    ['Nº CCM',             d.t_ccm],
-    ['Sit. CCM',           d.t_sit_ccm,        colorSit(d.t_sit_ccm)],
-    ['Nº IE',              d.t_ie||'—'],
-    ['IE outros estados',  d.t_ie_outros_est||'Não informado'],
-    ['Proc. Federal',      d.t_proc_federal,   ok(d.t_proc_federal)?'green':'amber'],
-    ['Proc. Estadual',     d.t_proc_estadual,  ok(d.t_proc_estadual)?'green':'amber'],
-    ['Proc. Municipal',    d.t_proc_municipal, ok(d.t_proc_municipal)?'green':'amber'],
-    ['PERDCOMP',           d.t_perdcomp,       d.t_perdcomp?.toUpperCase()==='SIM'?'red':'green'],
-    ['REINF (aluguel)',    d.t_reinf,          d.t_reinf?.toLowerCase().includes('não')?'green':'amber'],
-    ['Parcelamento fiscal',d.t_parcel_fiscal,  d.t_parcel_fiscal?.toLowerCase().includes('n/a')||nao(d.t_parcel_fiscal)?'green':'amber'],
-    ['CPRB',               d.t_cprb,           d.t_cprb?.toUpperCase()==='NÃO'?'gray':'amber'],
-  ]);
+  let ctxHtml = '';
+  if (d.core_business) ctxHtml += `<div class="dr"><div class="dk">Core Business</div><div class="dv long">${d.core_business}</div></div>`;
+  ctxHtml += row('Site institucional', d.site);
+  html += secCard('🏢 Contexto do Negócio', ctxHtml);
+  html += '</div>';
 
-  // ── 6. Apuração Fiscal ───────────────────────────────────
-  // Show LP if has data, LR if has data, SN if has data
+  // ── APURAÇÃO — full width centralizado ───────────────
   const hasLP = d.t_lp_irpj_csll||d.t_lp_pis_cofins||d.t_lp_venc_iss;
   const hasLR = d.t_lr_irpj_csll||d.t_lr_pis_cofins;
   const hasSN = d.t_sn_anexos||d.t_sn_apuracao;
 
-  if (hasLP) {
-    let apurHtml = '';
-    apurHtml += row('IRPJ / CSLL',        d.t_lp_irpj_csll,  'blue');
-    apurHtml += row('PIS / COFINS',       d.t_lp_pis_cofins, 'blue');
-    apurHtml += row('Monofasia PIS/COFINS',d.t_lp_monofasia);
-    apurHtml += row('Tributação ICMS',    d.t_lp_icms||'—');
-    apurHtml += row('Vencimento ISS',     d.t_lp_venc_iss ? `Dia ${d.t_lp_venc_iss}` : '');
-    apurHtml += row('ISS outros municípios', d.t_lp_iss_outros, d.t_lp_iss_outros?.toUpperCase()==='NÃO'?'green':'amber');
-    if (d.t_lp_obs) apurHtml += `<div class="dr"><div class="dk">Observações LP</div><div class="dv long">${d.t_lp_obs}</div></div>`;
-    if (d.cnaes?.length) apurHtml += `<div class="dr"><div class="dk">CNAEs</div><div class="dv" style="font-size:11px;line-height:1.8">${d.cnaes.join('<br>')}</div></div>`;
-    html += secCard('📊 Apuração — Lucro Presumido', apurHtml);
-  }
-  if (hasLR) {
-    html += card('📊 Apuração — Lucro Real', [
-      ['IRPJ / CSLL',       d.t_lr_irpj_csll],
-      ['PIS / COFINS',      d.t_lr_pis_cofins, 'blue'],
-      ['Saldo PIS/COFINS',  d.t_lr_saldo_pc],
-      ['Créditos PIS/COFINS',d.t_lr_creditos_pc],
-      ['Tributação ICMS',   d.t_lr_icms],
-      ['Vencimento ISS',    d.t_lr_venc_iss ? `Dia ${d.t_lr_venc_iss}` : ''],
-      ['ISS outros mun.',   d.t_lr_iss_outros],
-      ['Energia elétrica',  d.t_lr_energia],
-    ]);
-  }
-  if (hasSN) {
-    html += card('📊 Apuração — Simples Nacional', [
-      ['Anexos aplicáveis',   d.t_sn_anexos],
-      ['Regime apuração rec.',d.t_sn_apuracao],
-      ['Serv./Venda exterior',d.t_sn_exterior],
-      ['RBT 12',              d.t_sn_rbt12],
-      ['RBTA',                d.t_sn_rbta],
-      ['ISS/ICMS por fora',   d.t_sn_iss_icms_fora],
-      ['Ação RBTA/Sublimite', d.t_sn_acao_rbta],
-      ['Ciência monofasia',   d.t_sn_monofasia],
-      ['Tributação ICMS',     d.t_sn_trib_icms],
-    ]);
+  if (hasLP||hasLR||hasSN) {
+    html += '<div style="margin-bottom:4px"><div class="sec-card" style="background:var(--dark);border-radius:10px 10px 0 0;border-bottom:3px solid var(--red)"><div style="padding:10px 20px;font-size:12px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.8px">📊 Apuração Fiscal (Aba 2)</div></div></div>';
+    html += '<div class="sections-grid" style="margin-top:0">';
+    if (hasLP) {
+      let apurHtml = '';
+      apurHtml += row('IRPJ / CSLL',           d.t_lp_irpj_csll,   'blue');
+      apurHtml += row('PIS / COFINS',           d.t_lp_pis_cofins,  'blue');
+      apurHtml += row('Monofasia PIS/COFINS',   d.t_lp_monofasia);
+      apurHtml += row('Tributação ICMS',        d.t_lp_icms||'—');
+      apurHtml += row('Vencimento ISS',         d.t_lp_venc_iss ? `Dia ${d.t_lp_venc_iss}` : '');
+      apurHtml += row('ISS outros municípios',  d.t_lp_iss_outros,  d.t_lp_iss_outros?.toUpperCase()==='NÃO'?'green':'amber');
+      if (d.t_lp_obs) apurHtml += `<div class="dr"><div class="dk">Observações</div><div class="dv long">${d.t_lp_obs}</div></div>`;
+      if (d.cnaes?.length) apurHtml += `<div class="dr"><div class="dk">CNAEs</div><div class="dv" style="font-size:11px;line-height:1.8">${d.cnaes.join('<br>')}</div></div>`;
+      html += secCard('📊 Lucro Presumido', apurHtml);
+    }
+    if (hasLR) {
+      html += card('📊 Lucro Real', [
+        ['IRPJ / CSLL',         d.t_lr_irpj_csll],
+        ['PIS / COFINS',        d.t_lr_pis_cofins, 'blue'],
+        ['Saldo PIS/COFINS',    d.t_lr_saldo_pc],
+        ['Créditos PIS/COFINS', d.t_lr_creditos_pc],
+        ['Tributação ICMS',     d.t_lr_icms],
+        ['Vencimento ISS',      d.t_lr_venc_iss ? `Dia ${d.t_lr_venc_iss}` : ''],
+        ['ISS outros mun.',     d.t_lr_iss_outros],
+        ['Energia elétrica',    d.t_lr_energia],
+      ]);
+    }
+    if (hasSN) {
+      html += card('📊 Simples Nacional', [
+        ['Anexos aplicáveis',    d.t_sn_anexos],
+        ['Regime apuração rec.', d.t_sn_apuracao],
+        ['Serv./Venda exterior', d.t_sn_exterior],
+        ['RBT 12',               d.t_sn_rbt12],
+        ['RBTA',                 d.t_sn_rbta],
+        ['ISS/ICMS por fora',    d.t_sn_iss_icms_fora],
+        ['Ação RBTA/Sublimite',  d.t_sn_acao_rbta],
+        ['Ciência monofasia',    d.t_sn_monofasia],
+        ['Tributação ICMS',      d.t_sn_trib_icms],
+      ]);
+    }
+    html += '</div>';
   }
 
-  // ── 7. Departamento Pessoal — Dados Gerais ───────────────
-  html += card('👤 DP — Dados Gerais (Aba 1)', [
-    ['CLT',                d.dp_clt?.val,           nao(d.dp_clt?.val)?'green':'blue'],
-    ['Pretende contratar', d.dp_pretende_contr?.val,nao(d.dp_pretende_contr?.val)?'green':'amber'],
-    ['PJs / Freelancers',  d.dp_pjs?.val,           nao(d.dp_pjs?.val)?'green':'blue'],
-    ['Dia pgto folha',     d.dp_dia_pgto ? `Dia ${d.dp_dia_pgto}` : '—'],
-    ['Adiantamento sal.',  d.dp_adiantamento?.val,  nao(d.dp_adiantamento?.val)?'gray':'blue'],
-    ['Controle de ponto',  d.dp_ponto?.val,          nao(d.dp_ponto?.val)?'gray':'blue'],
-    ['Comissões/HE/Var.',  d.dp_comissoes?.val,     nao(d.dp_comissoes?.val)?'gray':'amber'],
-    ['Benefícios específicos',d.dp_beneficios_esp?.val, nao(d.dp_beneficios_esp?.val)?'gray':'amber'],
-    ['Rotatividade/Passivo',d.dp_rotatividade?.val, nao(d.dp_rotatividade?.val)?'green':'red'],
-    ['Sindicato',          d.dp_sindicato?.val,     nao(d.dp_sindicato?.val)?'green':'amber'],
-    ['Acordo coletivo',    d.dp_acordo_col?.val,    nao(d.dp_acordo_col?.val)?'green':'amber'],
-    ['Escalas/Turnos',     d.dp_escalas?.val,       nao(d.dp_escalas?.val)?'green':'amber'],
-    ['Pró-labore',         d.dp_prolabore,          nao(d.dp_prolabore)?'gray':'amber'],
+  // ══════════════════════════════════════════════════════
+  //  FISCAL — Aba 1 do lado de Aba 2
+  // ══════════════════════════════════════════════════════
+  html += '<div style="margin-bottom:4px"><div class="sec-card" style="background:var(--dark);border-radius:10px 10px 0 0;border-bottom:3px solid var(--red)"><div style="padding:10px 20px;font-size:12px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.8px">🏛️ Fiscal</div></div></div>';
+  html += '<div class="sections-grid" style="margin-top:0">';
+
+  html += card('🏛️ Fiscal — Dados Gerais (Aba 1)', [
+    ['Tipos de serviços',         d.fs_servicos_tipos],
+    ['Faturamento previsível',    d.fs_faturamento_prev],
+    ['Qtd NF / mês',              d.fs_qtd_nf],
+    ['Importação / Exportação',   d.fs_importa_exporta?.val, sim(d.fs_importa_exporta?.val)?'amber':'green'],
+    ['Obs. Importação/Export.',   d.fs_importa_exporta?.obs],
+    ['Impostos em atraso',        d.fs_imp_atraso?.val,      nao(d.fs_imp_atraso?.val)?'green':'red'],
+    ['Parcelamentos',             d.fs_parcelamentos?.val,   nao(d.fs_parcelamentos?.val)?'green':'amber'],
+    ['Contratos c/ clientes',     d.fs_contratos?.val,       sim(d.fs_contratos?.val)?'blue':'green'],
+    ['Obs. Contratos',            d.fs_contratos?.obs],
+    ['Sistema emissor NF',        d.fs_sist_nf?.val],
+    ['Obs. Sistema NF',           d.fs_sist_nf?.obs],
+    ['Subst. Tributária / DIFAL', d.fs_subst_trib?.val,      nao(d.fs_subst_trib?.val)?'green':'amber'],
+    ['Obs. Subst. Tributária',    d.fs_subst_trib?.obs],
+    ['Regimes especiais / Benef.',d.fs_regime_esp?.val,      nao(d.fs_regime_esp?.val)?'green':'amber'],
+    ['Obs. Regimes especiais',    d.fs_regime_esp?.obs],
+    ['Instrução p/ emitir NF',    d.fs_instrucao_nf?.val,    nao(d.fs_instrucao_nf?.val)?'green':'amber'],
   ]);
 
-  // ── 8. Departamento Pessoal — Dados Técnicos ─────────────
+  html += card('🏛️ Fiscal — Dados Técnicos (Aba 2)', [
+    ['Sit. Fiscal Federal',       d.t_sit_federal,    colorSit(d.t_sit_federal)],
+    ['Sit. Fiscal Estadual',      d.t_sit_estadual,   colorSit(d.t_sit_estadual)],
+    ['Sit. Fiscal Municipal',     d.t_sit_municipal,  colorSit(d.t_sit_municipal)],
+    ['Nº CCM',                    d.t_ccm],
+    ['Sit. CCM',                  d.t_sit_ccm,        colorSit(d.t_sit_ccm)],
+    ['Nº IE',                     d.t_ie||'—'],
+    ['Sit. IE',                   d.t_sit_ie||'—'],
+    ['IE outros estados',         d.t_ie_outros_est||'—'],
+    ['Procuração Federal',        d.t_proc_federal,   ok(d.t_proc_federal)?'green':'amber'],
+    ['Proc. / Acesso Estadual',   d.t_proc_estadual,  ok(d.t_proc_estadual)?'green':'amber'],
+    ['Proc. / Acesso Municipal',  d.t_proc_municipal, ok(d.t_proc_municipal)?'green':'amber'],
+    ['PERDCOMP',                  d.t_perdcomp,       d.t_perdcomp?.toUpperCase()==='SIM'?'red':'green'],
+    ['REINF (pag. aluguel PF)',   d.t_reinf,          d.t_reinf?.toLowerCase().includes('não')?'green':'amber'],
+    ['Parcelamento fiscal',       d.t_parcel_fiscal,  d.t_parcel_fiscal?.toLowerCase().includes('n/a')||nao(d.t_parcel_fiscal)?'green':'amber'],
+    ['Contribuinte CPRB',         d.t_cprb,           d.t_cprb?.toUpperCase()==='NÃO'?'gray':'amber'],
+  ]);
+
+  html += '</div>';
+
+  // ══════════════════════════════════════════════════════
+  //  DEPARTAMENTO PESSOAL — Aba 1 do lado de Aba 2
+  // ══════════════════════════════════════════════════════
+  html += '<div style="margin-bottom:4px"><div class="sec-card" style="background:var(--dark);border-radius:10px 10px 0 0;border-bottom:3px solid var(--red)"><div style="padding:10px 20px;font-size:12px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.8px">👤 Departamento Pessoal</div></div></div>';
+  html += '<div class="sections-grid" style="margin-top:0">';
+
+  html += card('👤 DP — Dados Gerais (Aba 1)', [
+    ['CLT',                     d.dp_clt?.val,            nao(d.dp_clt?.val)?'green':'blue'],
+    ['Obs. CLT',                d.dp_clt?.obs],
+    ['Pretende contratar',      d.dp_pretende_contr?.val, nao(d.dp_pretende_contr?.val)?'green':'amber'],
+    ['Obs. Pretende contratar', d.dp_pretende_contr?.obs],
+    ['PJs / Freelancers',       d.dp_pjs?.val,            nao(d.dp_pjs?.val)?'green':'blue'],
+    ['Dia pgto folha',          d.dp_dia_pgto ? `Dia ${d.dp_dia_pgto}` : '—'],
+    ['Adiantamento salarial',   d.dp_adiantamento?.val,   nao(d.dp_adiantamento?.val)?'gray':'blue'],
+    ['Controle de ponto',       d.dp_ponto?.val,          nao(d.dp_ponto?.val)?'gray':'blue'],
+    ['Comissões / HE / Var.',   d.dp_comissoes?.val,      nao(d.dp_comissoes?.val)?'gray':'amber'],
+    ['Obs. Comissões',          d.dp_comissoes?.obs],
+    ['Benefícios específicos',  d.dp_beneficios_esp?.val, nao(d.dp_beneficios_esp?.val)?'gray':'amber'],
+    ['Obs. Benefícios',         d.dp_beneficios_esp?.obs],
+    ['Rotatividade / Passivo',  d.dp_rotatividade?.val,   nao(d.dp_rotatividade?.val)?'green':'red'],
+    ['Obs. Rotatividade',       d.dp_rotatividade?.obs],
+    ['Sindicato',               d.dp_sindicato?.val,      nao(d.dp_sindicato?.val)?'green':'amber'],
+    ['Obs. Sindicato',          d.dp_sindicato?.obs],
+    ['Acordo coletivo',         d.dp_acordo_col?.val,     nao(d.dp_acordo_col?.val)?'green':'amber'],
+    ['Escalas / Turnos',        d.dp_escalas?.val,        nao(d.dp_escalas?.val)?'green':'amber'],
+    ['Pró-labore',              d.dp_prolabore,           nao(d.dp_prolabore)?'gray':'amber'],
+  ]);
+
   let dpTecHtml = '';
-  // col1 values (left column)
-  dpTecHtml += row('Situação Fiscal DP',  d.t_dp_sit_fiscal,   colorSit(d.t_dp_sit_fiscal));
-  dpTecHtml += row('Pró-labore',          d.t_dp_prolabore,    nao(d.t_dp_prolabore)?'gray':'amber');
-  dpTecHtml += row('Parcelamento',        d.t_dp_parcelamento, d.t_dp_parcelamento?.toLowerCase().includes('n/a')?'green':'amber');
-  dpTecHtml += row('CRF',                 d.t_dp_crf,          colorSit(d.t_dp_crf));
-  dpTecHtml += row('Enquad. Sindical',    d.t_dp_enquad_sind);
-  dpTecHtml += row('eSocial',             d.t_dp_esocial,      d.t_dp_esocial?.toLowerCase().includes('sem')?'gray':'blue');
-  dpTecHtml += row('E-Consignado',        d.t_dp_econsig||'Não informado');
-  dpTecHtml += row('FGTS em aberto',      d.t_dp_fgts_aberto||'Não informado');
-  dpTecHtml += row('Data pgto folha',     d.t_dp_data_pgto ? `Dia ${d.t_dp_data_pgto}` : '—');
-  dpTecHtml += row('Adiantamento salarial',d.t_dp_adiantamento||'Não informado');
-  // col3 values (right column — labels sem valores = campos a preencher)
-  dpTecHtml += row('Procurações',         d.t_dp_procuracoes,  d.t_dp_procuracoes?'green':'amber');
-  dpTecHtml += row('Recém-constituído',   d.t_dp_recem_const,  sim(d.t_dp_recem_const)?'blue':'green');
-  dpTecHtml += row('DCTFWeb abertura',    d.t_dp_dctfweb,      praz(d.t_dp_dctfweb)?'green':'amber');
-  dpTecHtml += row('CLT (técnico)',       d.t_dp_clt||'Sem valor = Não possui', 'gray');
-  dpTecHtml += row('Sindicato (técnico)', d.t_dp_sindicato||'Sem valor = Não possui', 'gray');
-  dpTecHtml += row('Estagiários',         d.t_dp_estagiarios||'Sem valor = Não possui', 'gray');
-  dpTecHtml += row('RPA',                 d.t_dp_rpa||'Sem valor = Não possui', 'gray');
-  dpTecHtml += row('Qtd. vidas',          d.t_dp_qtd_vidas||'Sem valor');
-  dpTecHtml += row('Folha c/ lançamentos',d.t_dp_folha_lanc||'Sem valor');
-  dpTecHtml += row('Envio documentação',  d.t_dp_envio_doc||'Sem valor');
-  dpTecHtml += row('Login Empregador Web',d.t_dp_login_emp_web||'Sem valor');
+  dpTecHtml += row('Situação Fiscal DP',    d.t_dp_sit_fiscal,    colorSit(d.t_dp_sit_fiscal));
+  dpTecHtml += row('Procurações',           d.t_dp_procuracoes,   d.t_dp_procuracoes?'green':'amber');
+  dpTecHtml += row('Recém-constituído',     d.t_dp_recem_const,   sim(d.t_dp_recem_const)?'blue':'green');
+  dpTecHtml += row('DCTFWeb abertura',      d.t_dp_dctfweb,       praz(d.t_dp_dctfweb)?'green':'amber');
+  dpTecHtml += row('Pró-labore',            d.t_dp_prolabore,     nao(d.t_dp_prolabore)?'gray':'amber');
+  dpTecHtml += row('Parcelamento',          d.t_dp_parcelamento,  d.t_dp_parcelamento?.toLowerCase().includes('n/a')?'green':'amber');
+  dpTecHtml += row('CRF',                   d.t_dp_crf,           colorSit(d.t_dp_crf));
+  dpTecHtml += row('Enquadramento Sindical',d.t_dp_enquad_sind||'—');
+  dpTecHtml += row('eSocial',               d.t_dp_esocial,       d.t_dp_esocial?.toLowerCase().includes('sem')?'gray':'blue');
+  dpTecHtml += row('E-Consignado',          d.t_dp_econsig||'—');
+  dpTecHtml += row('FGTS em aberto',        d.t_dp_fgts_aberto||'—');
+  dpTecHtml += row('CLT (técnico)',         d.t_dp_clt||'—',      'gray');
+  dpTecHtml += row('Sindicato (técnico)',   d.t_dp_sindicato||'—','gray');
+  dpTecHtml += row('Estagiários',           d.t_dp_estagiarios||'—');
+  dpTecHtml += row('RPA',                   d.t_dp_rpa||'—');
+  dpTecHtml += row('Qtd. vidas',            d.t_dp_qtd_vidas||'—');
+  dpTecHtml += row('Folha c/ lançamentos',  d.t_dp_folha_lanc||'—');
+  dpTecHtml += row('Data pgto folha',       d.t_dp_data_pgto ? `Dia ${d.t_dp_data_pgto}` : '—');
+  dpTecHtml += row('Adiantamento salarial', d.t_dp_adiantamento||'—');
+  dpTecHtml += row('Envio documentação',    d.t_dp_envio_doc||'—');
+  dpTecHtml += row('Login Empregador Web',  d.t_dp_login_emp_web||'—');
   html += secCard('👤 DP — Dados Técnicos (Aba 2)', dpTecHtml);
 
-  // ── 9. Contábil — Dados Gerais ───────────────────────────
+  html += '</div>';
+
+  // ══════════════════════════════════════════════════════
+  //  CONTÁBIL — Aba 1 do lado de Aba 2
+  // ══════════════════════════════════════════════════════
+  html += '<div style="margin-bottom:4px"><div class="sec-card" style="background:var(--dark);border-radius:10px 10px 0 0;border-bottom:3px solid var(--red)"><div style="padding:10px 20px;font-size:12px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.8px">📒 Contábil</div></div></div>';
+  html += '<div class="sections-grid" style="margin-top:0">';
+
   html += card('📒 Contábil — Dados Gerais (Aba 1)', [
-    ['Conta bancária PJ',      d.co_conta_pj?.obs||'Não informado'],
-    ['Sistema de gestão',      d.co_sist_gestao?.obs||'Não informado'],
-    ['Centros de custo',       d.co_centros_custo?.obs||'Não informado'],
-    ['Plano contas custom.',   d.co_plano_custom?.obs||'Não informado'],
-    ['Demonstração ant.',      d.co_demonst_ant?.obs||'Não informado'],
-    ['Auditoria/Investidor',   d.co_auditoria?.obs||'Não informado'],
-    ['Reconciliação estoque',  d.co_reconciliacao?.obs||'Não informado'],
-    ['Calendário de fechamento',d.co_calendario?.obs||'Não informado'],
-    ['Relatório mensal',       d.co_relatorio_men?.obs||'Não informado'],
-    ['Periodicidade balancete', d.co_period_bal?.obs||'Não informado'],
-    ['Prazo balancete (dia)',   d.co_prazo_bal?.obs||'Não informado'],
-    ['Ativos intangíveis',     d.co_ativos_intang||'Não informado'],
-    ['SCP',                    d.co_scp||'Não informado'],
-    ['Mútuos coligadas',       d.co_mutuos||'Não informado'],
-    ['Bens patrimoniais',      d.co_bens_patrim||'Não informado'],
-    ['Controle de estoque',    d.co_controle_est||'Não informado'],
-    ['Qtd empréstimos',        d.co_qtd_emprest||'Não informado'],
+    ['Conta bancária PJ',       d.co_conta_pj?.obs||'—'],
+    ['Sistema de gestão fin.',  d.co_sist_gestao?.obs||'—'],
+    ['Centros de custo',        d.co_centros_custo?.obs||'—'],
+    ['Plano contas custom.',    d.co_plano_custom?.obs||'—'],
+    ['Demonstração anterior',   d.co_demonst_ant?.obs||'—'],
+    ['Auditoria / Investidor',  d.co_auditoria?.obs||'—'],
+    ['Reconciliação estoque',   d.co_reconciliacao?.obs||'—'],
+    ['Calendário de fechamento',d.co_calendario?.obs||'—'],
+    ['Relatório mensal',        d.co_relatorio_men?.obs||'—'],
+    ['Periodicidade balancete', d.co_period_bal?.obs||'—'],
+    ['Prazo balancete (dia)',   d.co_prazo_bal?.obs||'—'],
+    ['Ativos intangíveis',      d.co_ativos_intang||'—'],
+    ['SCP',                     d.co_scp||'—'],
+    ['Mútuos coligadas',        d.co_mutuos||'—'],
+    ['Bens patrimoniais',       d.co_bens_patrim||'—'],
+    ['Controle de estoque',     d.co_controle_est||'—'],
+    ['Qtd empréstimos/mutuos',  d.co_qtd_emprest||'—'],
   ]);
 
-  // ── 10. Contábil — Dados Técnicos ────────────────────────
   let coTecHtml = '';
-  coTecHtml += row('Recém-constituído',   d.t_co_recem_const||'Não informado');
-  coTecHtml += row('Controle imobilizado',d.t_co_imobilizado||'Não informado');
-  coTecHtml += row('Situação Fiscal',     d.t_co_sit_fiscal||'Não informado',   colorSit(d.t_co_sit_fiscal));
-  coTecHtml += row('Relatório mensal',    d.t_co_relat_men||'Não informado');
-  coTecHtml += row('Contab. anterior',    d.t_co_ant||'Não informado');
-  coTecHtml += row('Possib. balancete',   d.t_co_balancete||'Não informado');
-  coTecHtml += row('Conta PJ',           d.t_co_conta_pj||'Não informado');
-  coTecHtml += row('Empréstimos CNPJ',    d.t_co_emprest_cnpj||'Não informado');
-  coTecHtml += row('Empréstimo c/ sócio', d.t_co_emp_socio||'Não informado');
-  coTecHtml += row('Distrib. de lucros',  d.t_co_distrib_luc||'Não informado');
-  coTecHtml += row('Plano contas custom.', d.t_co_plano_custom||'Não informado');
-  coTecHtml += row('Sistema de gestão',   d.t_co_sist_gestao||'Não informado');
-  coTecHtml += row('Recepção documentos', d.t_co_recepcao_doc||'Não informado');
-  coTecHtml += `<div class="dr"><div class="dk">ECD</div><div class="dv">${d.t_co_ecd||'Não informado'} ${d.t_co_ecd_obs?`<span style="color:var(--muted);font-size:11px">— ${d.t_co_ecd_obs}</span>`:''}</div></div>`;
-  coTecHtml += `<div class="dr"><div class="dk">ECF</div><div class="dv">${d.t_co_ecf||'Não informado'} ${d.t_co_ecf_obs?`<span style="color:var(--muted);font-size:11px">— ${d.t_co_ecf_obs}</span>`:''}</div></div>`;
-  coTecHtml += row('Lacunas obrig. acess.',d.t_co_lacunas||'Não informado');
-  coTecHtml += row('DEFIS (Simples)',      d.t_co_defis||'Não informado');
+  coTecHtml += row('Recém-constituído',      d.t_co_recem_const||'—');
+  coTecHtml += row('Controle imobilizado',   d.t_co_imobilizado||'—');
+  coTecHtml += row('Situação Fiscal',        d.t_co_sit_fiscal||'—',   colorSit(d.t_co_sit_fiscal));
+  coTecHtml += row('Relatório mensal',       d.t_co_relat_men||'—');
+  coTecHtml += row('Contab. anterior',       d.t_co_ant||'—');
+  coTecHtml += row('Possib. balancete ant.', d.t_co_balancete||'—');
+  coTecHtml += row('Conta PJ',              d.t_co_conta_pj||'—');
+  coTecHtml += row('Empréstimos no CNPJ',   d.t_co_emprest_cnpj||'—');
+  coTecHtml += row('Empréstimo c/ sócio',   d.t_co_emp_socio||'—');
+  coTecHtml += row('Distrib. de lucros',    d.t_co_distrib_luc||'—');
+  coTecHtml += row('Plano contas custom.',  d.t_co_plano_custom||'—');
+  coTecHtml += row('Sistema de gestão',     d.t_co_sist_gestao||'—');
+  coTecHtml += row('Recepção documentos',   d.t_co_recepcao_doc||'—');
+  coTecHtml += `<div class="dr"><div class="dk">ECD</div><div class="dv">${d.t_co_ecd||'—'} ${d.t_co_ecd_obs?`<span style="color:var(--muted);font-size:11px">— ${d.t_co_ecd_obs}</span>`:''}</div></div>`;
+  coTecHtml += `<div class="dr"><div class="dk">ECF</div><div class="dv">${d.t_co_ecf||'—'} ${d.t_co_ecf_obs?`<span style="color:var(--muted);font-size:11px">— ${d.t_co_ecf_obs}</span>`:''}</div></div>`;
+  coTecHtml += row('Lacunas obrig. acess.', d.t_co_lacunas||'—');
+  coTecHtml += row('DEFIS (Simples)',       d.t_co_defis||'—');
   html += secCard('📒 Contábil — Dados Técnicos (Aba 2)', coTecHtml);
 
-  // ── 11. Financeiro ────────────────────────────────────────
+  html += '</div>';
+
+  // ══════════════════════════════════════════════════════
+  //  FINANCEIRO — grid 2 col
+  // ══════════════════════════════════════════════════════
   const temFin = d.fin_meios_rec||d.fin_vol_pgto||d.fin_qtd_fornec||d.fin_cambio;
   if (temFin) {
+    html += '<div class="sections-grid">';
     html += card('💳 Financeiro — Dados Gerais (Aba 1)', [
-      ['Meios de recebimento',   d.fin_meios_rec||'Não informado'],
-      ['Volume pgtos mensais',   d.fin_vol_pgto||'Não informado'],
-      ['Qtd fornecedores',       d.fin_qtd_fornec||'Não informado'],
-      ['Cartão de crédito PJ',   d.fin_cartao||'Não informado'],
-      ['Reembolso sócios/PF',    d.fin_reembolso||'Não informado'],
-      ['Pgtos manuais/mês',      d.fin_pgto_manuais||'Não informado'],
-      ['Pgtos eletrônicos/mês',  d.fin_pgto_elet||'Não informado'],
-      ['Fechamentos de câmbio',  d.fin_cambio||'Não informado'],
+      ['Meios de recebimento',   d.fin_meios_rec||'—'],
+      ['Volume pgtos mensais',   d.fin_vol_pgto||'—'],
+      ['Qtd fornecedores',       d.fin_qtd_fornec||'—'],
+      ['Cartão de crédito PJ',   d.fin_cartao||'—'],
+      ['Reembolso sócios/PF',    d.fin_reembolso||'—'],
+      ['Pgtos manuais/mês',      d.fin_pgto_manuais||'—'],
+      ['Pgtos eletrônicos/mês',  d.fin_pgto_elet||'—'],
+      ['Fechamentos de câmbio',  d.fin_cambio||'—'],
     ]);
+    html += '</div>';
   }
 
-  // ── 12. Observações e pontos de atenção ───────────────────
+  // ── OBSERVAÇÕES — largura completa ───────────────────
   const obsItens = [
-    d.dp_clt?.obs             && `CLT: ${d.dp_clt.obs}`,
-    d.dp_pretende_contr?.obs  && `Contratação futura: ${d.dp_pretende_contr.obs}`,
-    d.dp_sindicato?.obs       && `Sindicato: ${d.dp_sindicato.obs}`,
-    d.dp_comissoes?.obs       && `Comissões/HE: ${d.dp_comissoes.obs}`,
-    d.dp_beneficios_esp?.obs  && `Benefícios específicos: ${d.dp_beneficios_esp.obs}`,
-    d.dp_contratos?.obs       && `Contratos: ${d.dp_contratos?.obs}`,
-    d.dp_rotatividade?.obs    && `Rotatividade: ${d.dp_rotatividade.obs}`,
-    d.fs_importa_exporta?.obs && `Importação/Exportação: ${d.fs_importa_exporta.obs}`,
-    d.fs_contratos?.obs       && `Contratos (fiscal): ${d.fs_contratos.obs}`,
-    d.co_obs_geral?.obs       && `Contábil — Obs geral: ${d.co_obs_geral.obs}`,
+    d.dp_clt?.obs            && `DP — CLT: ${d.dp_clt.obs}`,
+    d.dp_pretende_contr?.obs && `DP — Contratação futura: ${d.dp_pretende_contr.obs}`,
+    d.dp_sindicato?.obs      && `DP — Sindicato: ${d.dp_sindicato.obs}`,
+    d.dp_comissoes?.obs      && `DP — Comissões/HE: ${d.dp_comissoes.obs}`,
+    d.dp_beneficios_esp?.obs && `DP — Benefícios específicos: ${d.dp_beneficios_esp.obs}`,
+    d.dp_rotatividade?.obs   && `DP — Rotatividade: ${d.dp_rotatividade.obs}`,
+    d.fs_importa_exporta?.obs&& `Fiscal — Importação/Exportação: ${d.fs_importa_exporta.obs}`,
+    d.fs_contratos?.obs      && `Fiscal — Contratos: ${d.fs_contratos.obs}`,
+    d.co_obs_geral?.obs      && `Contábil — Obs geral: ${d.co_obs_geral.obs}`,
   ].filter(Boolean);
 
   if (obsItens.length) {
     let obHtml = '<div class="ci-list">';
-    obsItens.forEach(o => {
-      obHtml += `<div class="ci pend"><div class="ci-dot"></div><div style="font-size:13px">${o}</div></div>`;
-    });
+    obsItens.forEach(o => { obHtml += `<div class="ci pend"><div class="ci-dot"></div><div style="font-size:13px">${o}</div></div>`; });
     obHtml += '</div>';
-    html += `<div class="sec-card full">${secHead('📝 Observações e Pontos de Atenção')}<div class="sec-body">${obHtml}</div></div>`;
+    html += `<div class="sec-card" style="margin-bottom:20px">${secHead('📝 Observações e Pontos de Atenção')}<div class="sec-body">${obHtml}</div></div>`;
   }
 
-  // ── 13. Checklist Parametrização DP ─────────────────────
+  // ── CHECKLIST DP — full width ─────────────────────────
   if (d.dpCheck?.length) {
     const done = d.dpCheck.filter(x=>x.done).length, total = d.dpCheck.length;
     const pct = Math.round(done/total*100);
@@ -845,10 +893,10 @@ function renderReport(d) {
       </div><div class="ci-list">`;
     d.dpCheck.forEach(item => { ckHtml += `<div class="ci ${item.done?'done':'pend'}"><div class="ci-dot"></div>${item.label}</div>`; });
     ckHtml += '</div>';
-    html += `<div class="sec-card full">${secHead('⚙️ Checklist Parametrização DP')}<div class="sec-body">${ckHtml}</div></div>`;
+    html += `<div class="sec-card" style="margin-bottom:20px">${secHead('⚙️ Checklist Parametrização DP')}<div class="sec-body">${ckHtml}</div></div>`;
   }
 
-  html += '</div>'; // /sections-grid
+  html += ''; // end of sections
   document.getElementById('report-body').innerHTML = html;
   window.scrollTo({top:0});
 }
